@@ -1,0 +1,10 @@
+node_modules/
+dist/
+web/node_modules/
+server/node_modules/
+.env.local
+.DS_Store
+*.log
+web/dist/
+server/dist/
+android/

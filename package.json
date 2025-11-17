@@ -1,0 +1,22 @@
+{
+  "name": "monitorProject",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "postinstall": "echo Use npm --prefix to install in web and server",
+    "dev": "concurrently -n web,server -c blue,magenta \"npm --prefix ./web run dev\" \"npm --prefix ./server run dev\"",
+    "dev:web": "npm --prefix ./web run dev",
+    "dev:server": "npm --prefix ./server run dev",
+    "build": "concurrently -n web,server -c blue,magenta \"npm --prefix ./web run build\" \"npm --prefix ./server run build\"",
+    "build:web": "npm --prefix ./web run build",
+    "build:server": "npm --prefix ./server run build",
+    "preview": "npm --prefix ./web run preview"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "concurrently": "^9.0.0"
+  },
+  "dependencies": {
+    "vue": "^3.5.24"
+  }
+}
