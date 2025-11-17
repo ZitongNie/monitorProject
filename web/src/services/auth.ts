@@ -120,8 +120,9 @@ function getMockUsers(): MockUser[] {
     if (raw) return JSON.parse(raw);
   } catch {}
   const init: MockUser[] = [
-    { userId: 1, username: 'admin', password: '123456', roleType: 1, roleDesc: '系统管理员', realName: '系统管理员', phone: '13900000000', status: 1 },
-    { userId: 2, username: 'user', password: '123456', roleType: 2, roleDesc: '普通用户', realName: '普通用户', phone: '13900000001', status: 1 }
+    { userId: 1, username: 'admin', password: '123456', roleType: 1, roleDesc: '系统管理员', realName: '管理员', phone: '13900000000', status: 1 },
+    { userId: 2, username: 'user01', password: '123456', roleType: 2, roleDesc: '普通用户', realName: '张三', phone: '13900000001', status: 1 },
+    { userId: 3, username: 'user02', password: '123456', roleType: 2, roleDesc: '普通用户', realName: '李四', phone: '13900000002', status: 0 }
   ];
   setMockUsers(init);
   return init;
