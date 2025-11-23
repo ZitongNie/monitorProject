@@ -6,7 +6,7 @@
         <div class="title">登录</div>
         <div class="subtitle">登录您的账户以继续</div>
         <el-alert v-if="MOCK" class="hint" type="info" :closable="false"
-                  title="已启用本地账号：admin/123456 或 user/123456" />
+                  title="提示测试提示测试提示测试提示测试提示测试提示测试" />
       </div>
 
       <el-form class="form" :model="form" :rules="rules" ref="formRef" label-position="top" @keyup.enter.native="onSubmit">
@@ -34,9 +34,9 @@
           <el-checkbox v-model="form.remember">记住用户名</el-checkbox>
           <el-link type="primary" underline="never" @click="onForgot">忘记密码？</el-link>
         </div>
-        <div class="btn-col">
-          <el-button type="primary" @click="onSubmit" :loading="loading">登录</el-button>
+        <div class="btn-row">
           <el-button @click="regVisible = true" :disabled="loading">注册</el-button>
+          <el-button type="primary" @click="onSubmit" :loading="loading">登录</el-button>
         </div>
       </el-form>
       <div class="footer">© {{ year }} 监测数据平台</div>
@@ -178,7 +178,7 @@ async function onRegister() {
 .subtitle { color: #8a8f98; margin-top: 2px; font-size: 13px; }
 .form { margin-top: 8px; }
 .actions { display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; }
-.btn-col { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-width: 320px; margin-left: auto; margin-right: auto; }
-.btn-col :deep(.el-button) { width: 100%; }
+.btn-row { display:flex; gap:12px; margin-top:8px; max-width: 320px; margin-left:auto; margin-right:auto; }
+.btn-row :deep(.el-button) { flex:1; }
 .footer { text-align:center; margin-top: 14px; color:#9aa0a6; font-size: 12px; }
 </style>
