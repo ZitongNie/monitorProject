@@ -1,5 +1,13 @@
+<!--
+  地图视图页面
+  功能：百度地图展示测站和界桩点位、点击查看详情、管理员可新增/编辑/删除点位
+  技术：集成百度地图API,支持坐标转换(BD09/GCJ02/WGS84)
+-->
 <template>
+  <!-- 百度地图容器 -->
   <div id="allmap" class="map-container" ref="mapEl"></div>
+  
+  <!-- 点位详情抽屉 -->
   <el-drawer v-model="drawerVisible" title="点位详情" :with-header="true">
     <div v-if="activeItem">
       <p>名称/编号：{{ getItemName(activeItem) }}</p>
@@ -11,8 +19,11 @@
       </el-space>
     </div>
   </el-drawer>
+  
+  <!-- 管理员新增点位按钮 -->
   <el-button v-if="isAdmin" type="primary" style="position:absolute;right:24px;bottom:24px;" @click="onAdd">新增点位</el-button>
 
+  <!-- 新增点位弹窗 -->
   <el-dialog v-model="addVisible" title="新增点位" width="520px">
     <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="100px">
       <el-form-item label="点位种类" prop="type">

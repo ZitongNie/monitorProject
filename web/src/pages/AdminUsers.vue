@@ -1,8 +1,13 @@
+<!--
+  用户管理页面（管理员专用）
+  功能：用户列表查询(支持按用户名/角色/状态筛选)、分页、新增、编辑、删除、状态切换
+  权限：仅管理员可访问
+-->
 <template>
   <el-card>
     <template #header>用户管理（管理员）</template>
     
-    <!-- 搜索栏 -->
+    <!-- 搜索栏：支持按用户名、角色、状态筛选 -->
     <el-form :inline="true" :model="searchForm" style="margin-bottom:12px;">
       <el-form-item label="用户名">
         <el-input v-model.trim="searchForm.username" placeholder="模糊搜索" clearable style="width:160px;" />
@@ -25,10 +30,13 @@
       </el-form-item>
     </el-form>
 
+    <!-- 操作按钮 -->
     <el-space>
       <el-button type="primary" @click="openEdit()">新增用户</el-button>
       <el-button @click="load">刷新</el-button>
     </el-space>
+    
+    <!-- 用户列表表格 -->
     <el-table :data="items" style="margin-top:12px;width:100%;" height="580">
       <el-table-column label="序号" width="80" type="index" :index="getIndex" />
       <el-table-column prop="username" label="用户名" min-width="120" />
@@ -56,7 +64,7 @@
       </el-table-column>
     </el-table>
 
-    <!-- 分页 -->
+    <!-- 分页组件 -->
     <el-pagination
       v-model:current-page="pagination.pageNum"
       v-model:page-size="pagination.pageSize"
@@ -71,6 +79,7 @@
     />
   </el-card>
 
+  <!-- 新增/编辑用户弹窗 -->
   <el-dialog v-model="editVisible" :title="form.id? '编辑用户':'新增用户'" width="540px">
     <el-form :model="form" :rules="formRules" ref="formRef" label-width="88px">
       <el-form-item label="用户名" prop="username">
@@ -111,18 +120,23 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { listUsers, createUser, updateUser, deleteUser, getUserDetail, type User, type UserListResult } from '../services/users';
+import { listUsers, createUser, updateUser, deleteUser, getUserDetail, type User } from '../services/users';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
+// 用户列表数据
 const items = ref<User[]>([]);
 const editVisible = ref(false);
 const saving = ref(false);
 const formRef = ref();
 const form = ref<any>({ role: 'user', status: 1 });
 
+// 搜索表单
 const searchForm = ref<{ username?: string; role?: 'admin'|'user'; status?: 0|1 }>({});
+
+// 分页信息
 const pagination = ref({ pageNum: 1, pageSize: 10, total: 0, pages: 0 });
 
+// 表单验证规则
 const formRules: any = {
   username: [
     { required: true, message: '用户名不能为空', trigger: 'blur' },
@@ -145,10 +159,12 @@ const formRules: any = {
   status: [{ required: true, message: '状态不能为空', trigger: 'change' }]
 };
 
+// 计算分页序号(跨页连续编号)
 function getIndex(index: number) {
   return (pagination.value.pageNum - 1) * pagination.value.pageSize + index + 1;
 }
 
+// 加载用户列表(带搜索和分页)
 async function load() {
   const result = await listUsers({
     username: searchForm.value.username,
@@ -162,17 +178,20 @@ async function load() {
   pagination.value.pages = result.pages;
 }
 
+// 执行搜索(重置到第一页)
 function onSearch() {
   pagination.value.pageNum = 1;
   load();
 }
 
+// 重置搜索条件
 function onReset() {
   searchForm.value = {};
   pagination.value.pageNum = 1;
   load();
 }
 
+// 打开新增/编辑弹窗
 async function openEdit(row?: User) {
   if (row) {
     // 编辑模式：调用详情接口获取完整数据
@@ -193,6 +212,7 @@ async function openEdit(row?: User) {
   }
 }
 
+// 保存用户(新增或编辑)
 async function save() {
   await (formRef.value as any)?.validate?.();
   saving.value = true;
@@ -227,6 +247,8 @@ async function save() {
     saving.value = false;
   }
 }
+
+// 删除用户(带确认)
 async function onDelete(row: User) { 
   await ElMessageBox.confirm('确认删除？','提示', { 
     confirmButtonText: '确定', 
@@ -237,6 +259,7 @@ async function onDelete(row: User) {
   ElMessage.success('已删除'); 
 }
 
+// 切换用户状态(正常/禁用)
 async function toggleStatus(row: User) {
   const newStatus = row.status === 1 ? 0 : 1;
   const statusText = newStatus === 1 ? '正常' : '禁用';
@@ -256,6 +279,7 @@ async function toggleStatus(row: User) {
   }
 }
 
+// 页面加载时获取用户列表
 load();
 </script>
 

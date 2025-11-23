@@ -1,6 +1,12 @@
+<!--
+  登录页面
+  功能：用户登录、记住用户名、注册新用户
+  支持：真实后端登录与本地Mock模式
+-->
 <template>
   <div class="login-page">
     <div class="login-card">
+      <!-- 品牌标识区 -->
       <div class="brand">
         <div class="logo">🔍</div>
         <div class="title">登录</div>
@@ -9,6 +15,7 @@
                   title="提示测试提示测试提示测试提示测试提示测试提示测试" />
       </div>
 
+      <!-- 登录表单 -->
       <el-form class="form" :model="form" :rules="rules" ref="formRef" label-position="top" @keyup.enter.native="onSubmit">
         <el-form-item label="用户名" prop="username">
           <el-input v-model.trim="form.username" placeholder="请输入用户名" clearable>
@@ -30,10 +37,12 @@
             </template>
           </el-input>
         </el-form-item>
+        <!-- 记住用户名与忘记密码 -->
         <div class="actions">
           <el-checkbox v-model="form.remember">记住用户名</el-checkbox>
           <el-link type="primary" underline="never" @click="onForgot">忘记密码？</el-link>
         </div>
+        <!-- 登录和注册按钮 -->
         <div class="btn-row">
           <el-button @click="regVisible = true" :disabled="loading">注册</el-button>
           <el-button type="primary" @click="onSubmit" :loading="loading">登录</el-button>
@@ -43,6 +52,7 @@
     </div>
   </div>
 
+  <!-- 注册弹窗 -->
   <el-dialog v-model="regVisible" title="注册新用户" width="480px">
     <el-form :model="regForm" :rules="regRules" ref="regFormRef" label-width="88px">
       <el-form-item label="用户名" prop="username">
@@ -77,9 +87,15 @@ const route = useRoute();
 const formRef = ref();
 const year = new Date().getFullYear();
 const passwordVisible = ref(false);
+
+// 登录表单数据，支持记住用户名
 const form = reactive({ username: localStorage.getItem('lastUsername') || '', password: '', remember: !!localStorage.getItem('lastUsername') });
 const loading = ref(false);
+
+// 检测是否为Mock模式
 const MOCK = (import.meta as any).env?.VITE_AUTH_MOCK === '1' || (import.meta as any).env?.VITE_AUTH_MOCK === 'true';
+
+// 登录表单验证规则
 const rules = {
   username: [
     { required: true, message: '用户名不能为空', trigger: 'blur' },
@@ -92,10 +108,11 @@ const rules = {
 };
 
 onMounted(() => {
-  // 可选：自动聚焦用户名输入框
+  // 自动聚焦用户名输入框
   try { (formRef.value as any)?.$el?.querySelector('input')?.focus(); } catch {}
 });
 
+// 提交登录
 async function onSubmit() {
   if (loading.value) return;
   await (formRef.value as any)?.validate?.();
@@ -114,15 +131,18 @@ async function onSubmit() {
   }
 }
 
+// 忘记密码提示
 function onForgot() {
   ElMessage.info('请联系管理员重置密码');
 }
 
-// 注册弹窗
+// 注册相关状态与表单
 const regVisible = ref(false);
 const regLoading = ref(false);
 const regFormRef = ref();
 const regForm = reactive<{ username: string; password: string; realName?: string; phone?: string }>({ username: '', password: '', realName: '', phone: '' });
+
+// 注册表单验证规则
 const regRules = {
   username: [
     { required: true, message: '用户名不能为空', trigger: 'blur' },
@@ -137,6 +157,7 @@ const regRules = {
   ]
 };
 
+// 提交注册
 async function onRegister() {
   await (regFormRef.value as any)?.validate?.();
   regLoading.value = true;

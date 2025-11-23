@@ -1,10 +1,16 @@
+<!--
+  白蚁测站管理页面
+  功能：列表展示、新增、编辑、删除测站，查看历史记录
+-->
 <template>
   <el-card>
     <template #header>白蚁测站</template>
+    <!-- 操作按钮 -->
     <el-space wrap>
       <el-button type="primary" @click="openEdit()">新增</el-button>
       <el-button @click="load">刷新</el-button>
     </el-space>
+    <!-- 测站列表表格 -->
     <el-table :data="items" style="margin-top:12px;" height="520">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="name" label="名称" />
@@ -23,6 +29,7 @@
     </el-table>
   </el-card>
 
+  <!-- 新增/编辑测站弹窗 -->
   <el-dialog v-model="editVisible" :title="form.id? '编辑测站':'新增测站'">
     <el-form :model="form" label-width="88px">
       <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
@@ -71,8 +78,8 @@ load();
 
 async function openHistory(row: Station) {
   const hist = await getStationHistory(row.id);
-  lineOption.value.xAxis.data = hist.map(h => new Date(h.t).toLocaleTimeString());
-  lineOption.value.series[0].data = hist.map(h => h.status === 'warn' ? 1 : 0);
+  lineOption.value.xAxis.data = hist.map((h: any) => new Date(h.t).toLocaleTimeString());
+  lineOption.value.series[0].data = hist.map((h: any) => h.status === 'warn' ? 1 : 0);
   historyVisible.value = true;
 }
 </script>

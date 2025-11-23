@@ -1,10 +1,16 @@
+<!--
+  电子界桩管理页面
+  功能：列表展示、新增、编辑、删除界桩，查看历史记录
+-->
 <template>
   <el-card>
     <template #header>电子界桩</template>
+    <!-- 操作按钮 -->
     <el-space wrap>
       <el-button type="primary" @click="openEdit()">新增</el-button>
       <el-button @click="load">刷新</el-button>
     </el-space>
+    <!-- 界桩列表表格 -->
     <el-table :data="items" style="margin-top:12px;" height="520">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="code" label="编号" />
@@ -23,6 +29,7 @@
     </el-table>
   </el-card>
 
+  <!-- 新增/编辑界桩弹窗 -->
   <el-dialog v-model="editVisible" :title="form.id? '编辑界桩':'新增界桩'">
     <el-form :model="form" label-width="88px">
       <el-form-item label="编号"><el-input v-model="form.code" /></el-form-item>
@@ -71,8 +78,8 @@ load();
 
 async function openHistory(row: Pile) {
   const hist = await getPileHistory(row.id);
-  lineOption.value.xAxis.data = hist.map(h => new Date(h.t).toLocaleTimeString());
-  lineOption.value.series[0].data = hist.map(h => h.status === 'warn' ? 1 : 0);
+  lineOption.value.xAxis.data = hist.map((h: any) => new Date(h.t).toLocaleTimeString());
+  lineOption.value.series[0].data = hist.map((h: any) => h.status === 'warn' ? 1 : 0);
   historyVisible.value = true;
 }
 </script>
