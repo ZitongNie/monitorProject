@@ -11,7 +11,7 @@
       <el-button @click="load">刷新</el-button>
     </el-space>
     <!-- 测站列表表格 -->
-    <el-table :data="items" style="margin-top:12px;" height="520">
+    <el-table :data="items" :style="{ marginTop: '12px' }" height="520">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="name" label="名称" />
       <el-table-column prop="lat" label="纬度" width="120" />

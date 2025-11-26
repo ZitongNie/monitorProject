@@ -10,7 +10,7 @@
     <!-- 搜索栏：支持按用户名、角色、状态筛选 -->
     <el-form :inline="true" :model="searchForm" style="margin-bottom:12px;">
       <el-form-item label="用户名">
-        <el-input v-model.trim="searchForm.username" placeholder="模糊搜索" clearable style="width:160px;" />
+        <el-input v-model.trim="searchForm.username" placeholder="支持模糊搜索" clearable style="width:160px;" />
       </el-form-item>
       <el-form-item label="角色">
         <el-select v-model="searchForm.role" placeholder="全部" clearable style="width:120px;">
@@ -37,7 +37,8 @@
     </el-space>
     
     <!-- 用户列表表格 -->
-    <el-table :data="items" style="margin-top:12px;width:100%;" height="580">
+    <!-- style 字符串在严格 TS 下会被推断为传递给组件的 props，需改为对象形式避免类型不匹配错误 -->
+    <el-table :data="items" :style="{ marginTop: '12px', width: '100%' }" height="580">
       <el-table-column label="序号" width="80" type="index" :index="getIndex" />
       <el-table-column prop="username" label="用户名" min-width="120" />
       <el-table-column prop="realName" label="姓名" min-width="120" />
