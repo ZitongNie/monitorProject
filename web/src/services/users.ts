@@ -209,8 +209,9 @@ export async function updateUser(id: number, payload: { password?: string; role?
     return;
   }
 
+  // 局部更新, 只有变更的字段才传给后端
   const body: any = { userId: id };
-  if (payload.username) body.username = payload.username; // 用于一致性校验（必须等于原用户名，否则后端会报错）
+  if (payload.username) body.username = payload.username; // 注意用户名不可修改, 此处只是用于一致性校验（必须等于原用户名，否则后端会报错）
   if (payload.password) body.password = payload.password;
   if (payload.role) body.roleType = toRoleType(payload.role);
   if (payload.roleDesc !== undefined) body.roleDesc = payload.roleDesc;
