@@ -4,7 +4,7 @@
   权限：仅管理员可访问
 -->
 <template>
-  <el-card>
+  <el-card :shadow="'never'" :bordered="false">
     <template #header>用户管理（管理员）</template>
     
     <!-- 搜索栏：支持按用户名、角色、状态筛选 -->
@@ -285,4 +285,13 @@ load();
 </script>
 
 <style scoped>
+:deep(.el-card) {
+  border: none;
+  box-shadow: none;
+}
+
+:deep(.el-card__header) {
+  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 20px;
+}
 </style>

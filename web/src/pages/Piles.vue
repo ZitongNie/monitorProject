@@ -3,7 +3,7 @@
   功能：列表展示、新增、编辑、删除界桩，查看历史记录
 -->
 <template>
-  <el-card>
+  <el-card :shadow="'never'" :bordered="false">
     <template #header>电子界桩</template>
     <!-- 操作按钮 -->
     <el-space wrap>
@@ -86,4 +86,14 @@ async function openHistory(row: Pile) {
 
 <style scoped>
 .chart { height: 360px; }
+
+:deep(.el-card) {
+  border: none;
+  box-shadow: none;
+}
+
+:deep(.el-card__header) {
+  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 20px;
+}
 </style>

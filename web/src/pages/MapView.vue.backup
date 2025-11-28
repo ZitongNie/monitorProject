@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   地图视图页面
   功能：左侧百度地图展示测站点位，右侧展示点击的测站详细信息
   技术：集成百度地图API,支持坐标转换(BD09/GCJ02/WGS84)
@@ -50,11 +50,6 @@
             </el-descriptions-item>
           </el-descriptions>
           
-          <!-- 查看详细信息按钮 -->
-          <div style="margin-top: 16px; text-align: center;">
-            <el-button type="success" @click="viewDetail">查看详细信息</el-button>
-          </div>
-          
           <!-- 历史数据图表区域 -->
           <div v-if="historyData.length > 0" class="history-section">
             <div class="section-title">历史监测数据</div>
@@ -70,8 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { listStations, type Station, getStationHistory } from '../services/stations';
 import { ElMessage } from 'element-plus';
 import { Location } from '@element-plus/icons-vue';
@@ -84,7 +78,6 @@ import dayjs from 'dayjs';
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent]);
 
-const router = useRouter();
 declare const BMapGL: any;
 const mapEl = ref<HTMLDivElement | null>(null);
 let ws: WebSocket | null = null;
@@ -93,12 +86,7 @@ const markers: any[] = [];
 const selectedStation = ref<Station | null>(null);
 const historyData = ref<Array<{ t: number; status: 'safe'|'warn' }>>([]);
 
-function viewDetail() {
-  if (selectedStation.value) {
-    router.push({ path: '/station-detail', query: { id: selectedStation.value.id } });
-  }
-}
-
+// 图表配置
 const chartOption = computed(() => {
   if (!historyData.value.length) return {};
   const times = historyData.value.map(d => dayjs(d.t).format('MM-DD HH:mm'));
@@ -112,6 +100,7 @@ const chartOption = computed(() => {
   };
 });
 
+// 将给定经纬度转换为百度 BD09 坐标（根据环境变量判定源坐标系）
 async function toBD09Point(lng: number, lat: number): Promise<any> {
   const sys = (import.meta as any).env?.VITE_COORD_SYS || 'bd09';
   if (!sys || sys.toLowerCase() === 'bd09') {
@@ -121,8 +110,8 @@ async function toBD09Point(lng: number, lat: number): Promise<any> {
     return new BMapGL.Point(lng, lat);
   }
   const convertor = new (BMapGL as any).Convertor();
-  const from = sys.toLowerCase() === 'wgs84' ? 1 : 3;
-  const to = 5;
+  const from = sys.toLowerCase() === 'wgs84' ? 1 : 3; // 1: WGS84(GPS), 3: GCJ02
+  const to = 5; // 5: BD09
   return new Promise((resolve) => {
     convertor.translate([{ lng, lat }], from, to, (res: any) => {
       if (res?.status === 0 && res?.points?.length) {
@@ -146,11 +135,13 @@ async function addMarker(station: Station) {
   const marker = new BMapGL.Marker(point);
   marker.addEventListener('click', async () => {
     selectedStation.value = station;
+    // 加载历史数据
     try {
       historyData.value = await getStationHistory(station.id);
     } catch {
       historyData.value = [];
     }
+    // 打开地图信息窗口
     try {
       const info = new BMapGL.InfoWindow(`<div><strong>${station.name}</strong><br/>坐标：${station.lat}, ${station.lng}</div>`);
       map.openInfoWindow(info, point);
@@ -165,6 +156,7 @@ function clearMarkers() {
   markers.length = 0;
 }
 
+// 百度地图AK
 const AK = '7j9Zg3mGoFudBiK624Yw8TzPCdiqbNB5';
 
 async function loadBaiduScript(ak: string) {
@@ -178,12 +170,44 @@ async function loadBaiduScript(ak: string) {
   });
 }
 
+// 初始化地图
+onMounted(async () => {
+  ElMessage.info('请在“白蚁测站 / 电子界桩”页面中编辑更完整的属性 (效果: 点击后跳转白蚁测站界面进行编辑)');
+}
+
+async function onRemove() {
+  if (!isAdmin.value) { ElMessage.error('普通用户不能编辑地图'); return; }
+  if (!activeItem.value) return;
+  await ElMessageBox.confirm('确认删除该点位？', '提示');
+  if (activeItem.value._type === 'station') await deleteStation(activeItem.value.id);
+  else await deletePile(activeItem.value.id);
+  drawerVisible.value = false;
+  await loadData();
+  ElMessage.success('已删除');
+}
+
+// 百度地图AK
+const AK = '7j9Zg3mGoFudBiK624Yw8TzPCdiqbNB5';
+
+async function loadBaiduScript(ak: string) {
+  if ((window as any).BMapGL) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `//api.map.baidu.com/api?type=webgl&v=1.0&ak=${ak}`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Baidu Map load failed'));
+    document.head.appendChild(script);
+  });
+}
+
+// 初始化地图
 onMounted(async () => {
   const ak = AK;
   if (!ak) { ElMessage.error('未配置百度地图 AK，无法加载百度地图'); return; }
   try {
     if (!(window as any).BMapGL) await loadBaiduScript(ak);
     map = new BMapGL.Map(mapEl.value || 'allmap', { enableRotate: true, enableTilt: true });
+    // 武汉大学坐标（经度, 纬度）
     const center = new BMapGL.Point(114.365, 30.537);
     map.centerAndZoom(center, 15);
     map.enableScrollWheelZoom(true);
@@ -199,7 +223,6 @@ onMounted(async () => {
     ws.onmessage = () => { loadData(); };
   } catch {}
 });
-
 onBeforeUnmount(() => {
   map = null;
   try { ws?.close(); } catch {}
@@ -210,7 +233,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .map-view-container {
   display: flex;
-  height: calc(100vh - 104px);
+  height: 100%;
   width: 100%;
   gap: 16px;
 }
@@ -307,6 +330,7 @@ onBeforeUnmount(() => {
   padding: 20px 0;
 }
 
+/* 响应式 */
 @media (max-width: 1200px) {
   .detail-section {
     width: 360px;

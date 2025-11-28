@@ -3,7 +3,7 @@
   功能：列表展示、新增、编辑、删除测站，查看历史记录
 -->
 <template>
-  <el-card>
+  <el-card :shadow="'never'" :bordered="false">
     <template #header>白蚁测站</template>
     <!-- 操作按钮 -->
     <el-space wrap>
@@ -19,9 +19,9 @@
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }"><el-tag :type="row.status==='warn'?'danger':'success'">{{ row.status }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="操作" width="260">
+      <el-table-column label="操作" width="300">
         <template #default="{ row }">
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button size="small" type="success" @click="viewDetail(row)">查看详细信息</el-button>
           <el-button size="small" @click="openHistory(row)">历史</el-button>
           <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
         </template>
@@ -50,6 +50,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { listStations, createStation, updateStation, deleteStation, getStationHistory, type Station } from '@/services/stations';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { use } from 'echarts/core';
@@ -59,6 +60,7 @@ import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components';
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent]);
 
+const router = useRouter();
 const items = ref<Station[]>([]);
 const editVisible = ref(false);
 const form = ref<Partial<Station>>({ status: 'safe', lat: 23.1, lng: 113.26 });
@@ -66,6 +68,7 @@ const historyVisible = ref(false);
 const lineOption = ref<any>({ title: { text: '状态变化(1=预警,0=安全)' }, xAxis: { type: 'category', data: [] }, yAxis: { type:'value' }, series: [{ type:'line', data: [] }] });
 
 async function load() { items.value = await listStations(); }
+function viewDetail(row: Station) { router.push({ path: '/station-detail', query: { id: row.id } }); }
 function openEdit(row?: Station) { form.value = row? { ...row } : { status: 'safe', lat: 23.1, lng: 113.26 }; editVisible.value = true; }
 async function save() {
   if (form.value.id) await updateStation(form.value.id, form.value);
@@ -86,4 +89,14 @@ async function openHistory(row: Station) {
 
 <style scoped>
 .chart { height: 360px; }
+
+:deep(.el-card) {
+  border: none;
+  box-shadow: none;
+}
+
+:deep(.el-card__header) {
+  border-bottom: 1px solid #e4e7ed;
+  padding: 16px 20px;
+}
 </style>

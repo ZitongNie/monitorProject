@@ -5,6 +5,7 @@ const Login = () => import('../pages/Login.vue');
 const Dashboard = () => import('../pages/Dashboard.vue');
 const MapView = () => import('../pages/MapView.vue');
 const Stations = () => import('../pages/Stations.vue');
+const StationDetail = () => import('../pages/StationDetail.vue');
 const Piles = () => import('../pages/Piles.vue');
 const Analytics = () => import('../pages/Analytics.vue');
 const AdminUsers = () => import('../pages/AdminUsers.vue');
@@ -23,6 +24,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'dashboard', name: 'dashboard', component: Dashboard },
       { path: 'map', name: 'map', component: MapView },
       { path: 'stations', name: 'stations', component: Stations },
+      { path: 'station-detail', name: 'station-detail', component: StationDetail },
       { path: 'piles', name: 'piles', component: Piles },
       { path: 'analytics', name: 'analytics', component: Analytics },
       { path: 'admin/users', name: 'admin-users', component: AdminUsers, meta: { role: 'admin' } },

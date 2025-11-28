@@ -8,9 +8,9 @@
     <div class="login-card">
       <!-- 品牌标识区 -->
       <div class="brand">
-        <div class="logo">🔍</div>
+        <div class="logo">🤓👆🏻</div>
         <div class="title">登录</div>
-        <div class="subtitle">登录您的账户以继续</div>
+        <div class="subtitle">副标题</div>
         <el-alert v-if="MOCK" class="hint" type="info" :closable="false"
                   title="提示测试提示测试提示测试提示测试提示测试提示测试" />
       </div>
@@ -181,9 +181,7 @@ async function onRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(1200px 600px at 20% 10%, #e8f3ff 0%, transparent 60%),
-              radial-gradient(1200px 600px at 80% 90%, #e8fff3 0%, transparent 60%),
-              linear-gradient(180deg, #f6f9fc 0%, #eef2f7 100%);
+  background: url('../img/login_background.jpg') center/cover no-repeat;
 }
 .login-card {
   width: 420px;

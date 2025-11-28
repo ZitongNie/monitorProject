@@ -11,5 +11,5 @@ body { background: var(--app-bg, #f5f7fa); font-family: -apple-system, BlinkMacS
 .layout .nav { grid-area: nav; }
 .layout .side { grid-area: side; }
 .layout .main { grid-area: main; padding: 12px; overflow: auto; }
-.page-container { background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.page-container { background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); height: 100%; box-sizing: border-box; }
 .map-container { height: calc(100vh - 120px); border-radius: 8px; overflow: hidden; }
