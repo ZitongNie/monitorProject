@@ -92,6 +92,8 @@ let map: any = null;
 const markers: any[] = [];
 const selectedStation = ref<Station | null>(null);
 const historyData = ref<Array<{ t: number; status: 'safe'|'warn' }>>([]);
+let hoverOpenTimer: any = null;
+let lastHoverId: string | number | null = null;
 
 function viewDetail() {
   if (selectedStation.value) {
@@ -144,6 +146,24 @@ async function addMarker(station: Station) {
   if (!map || !(window as any).BMapGL) return;
   const point = await toBD09Point(station.lng, station.lat);
   const marker = new BMapGL.Marker(point);
+  // 悬停显示信息气泡（带防抖，避免重复打开导致闪烁）
+  marker.addEventListener('mouseover', () => {
+    try {
+      if (lastHoverId === station.id) return;
+      if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
+      hoverOpenTimer = window.setTimeout(() => {
+        try { map.closeInfoWindow(); } catch {}
+        const info = new BMapGL.InfoWindow(
+          `<div><strong>${station.name}</strong><br/>坐标：${station.lat}, ${station.lng}</div>`,
+          { offset: new BMapGL.Size(0, -28) }
+        );
+        map.openInfoWindow(info, point);
+        lastHoverId = station.id;
+      }, 120);
+    } catch {}
+  });
+
+  // 点击用于选中并加载右侧详情
   marker.addEventListener('click', async () => {
     selectedStation.value = station;
     try {
@@ -151,10 +171,6 @@ async function addMarker(station: Station) {
     } catch {
       historyData.value = [];
     }
-    try {
-      const info = new BMapGL.InfoWindow(`<div><strong>${station.name}</strong><br/>坐标：${station.lat}, ${station.lng}</div>`);
-      map.openInfoWindow(info, point);
-    } catch {}
   });
   map.addOverlay(marker);
   markers.push(marker);
@@ -188,6 +204,10 @@ onMounted(async () => {
     map.centerAndZoom(center, 15);
     map.enableScrollWheelZoom(true);
     try { map.addControl(new BMapGL.ZoomControl()); } catch {}
+    // 点击/拖拽/缩放时关闭气泡，防止悬停后残留
+    try { map.addEventListener('click', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
+    try { map.addEventListener('dragstart', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
+    try { map.addEventListener('zoomstart', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
     console.info('[Map] Using Baidu Map (BMapGL)');
   } catch (e) {
     ElMessage.error('百度地图脚本加载失败，请检查网络与 AK 配置');
@@ -204,6 +224,8 @@ onBeforeUnmount(() => {
   map = null;
   try { ws?.close(); } catch {}
   ws = null;
+  try { if (hoverOpenTimer) clearTimeout(hoverOpenTimer); } catch {}
+  hoverOpenTimer = null;
 });
 </script>
 
@@ -244,7 +266,7 @@ onBeforeUnmount(() => {
 
 .detail-card :deep(.el-card__header) {
   padding: 14px 18px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #fff;
 }
 
 .card-header {
@@ -256,7 +278,7 @@ onBeforeUnmount(() => {
 .card-header .title {
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
+  color: #303133;
 }
 
 .detail-card :deep(.el-card__body) {

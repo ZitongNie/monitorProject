@@ -19,11 +19,16 @@
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }"><el-tag :type="row.status==='warn'?'danger':'success'">{{ row.status }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="操作" width="300">
+      <el-table-column label="操作" width="220">
         <template #default="{ row }">
-          <el-button size="small" type="success" @click="viewDetail(row)">查看详细信息</el-button>
           <el-button size="small" @click="openHistory(row)">历史</el-button>
           <el-button size="small" type="danger" @click="onDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="详细信息" width="140">
+        <template #default="{ row }">
+          <el-button size="small" type="primary" plain @click="viewDetail(row)">查看详细信息</el-button>
         </template>
       </el-table-column>
     </el-table>

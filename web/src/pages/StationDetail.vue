@@ -7,7 +7,7 @@
     <template #header>
       <div style="display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <el-button size="small" circle @click="goBack">
+          <el-button circle @click="goBack">
             <template #icon>
               <el-icon><ArrowLeft /></el-icon>
             </template>
@@ -15,8 +15,8 @@
           <span>测站详细信息</span>
         </div>
         <el-space>
-          <el-button size="small" type="primary" @click="openEditDialog">编辑测站信息</el-button>
-          <el-button size="small" @click="refreshData">刷新数据</el-button>
+          <el-button type="primary" @click="openEditDialog">编辑测站信息</el-button>
+          <el-button @click="refreshData">刷新数据</el-button>
         </el-space>
       </div>
     </template>
@@ -33,7 +33,7 @@
             {{ station.status === 'warn' ? '预警' : '安全' }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间" v-if="station.createdAt">
+        <el-descriptions-item label="创建时间" v-if="station && station.createdAt">
           {{ formatDate(station.createdAt) }}
         </el-descriptions-item>
       </el-descriptions>
@@ -61,14 +61,14 @@
       <!-- 历史记录表格 -->
       <div class="history-table-section">
         <h3>历史记录</h3>
-        <el-table :data="historyData" style="width: 100%" max-height="300">
+        <el-table :data="historyData" :style="{ width: '100%' }" :max-height="300">
           <el-table-column prop="t" label="时间" width="180">
             <template #default="{ row }">{{ formatDate(row.t) }}</template>
           </el-table-column>
           <el-table-column prop="status" label="状态">
             <template #default="{ row }">
               <el-tag :type="row.status === 'warn' ? 'danger' : 'success'" size="small">
-                {{ row.status === 'warn' ? '预警' : '安全' }}
+          {{ row.status === 'warn' ? '预警' : '安全' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -124,7 +124,7 @@ const router = useRouter();
 const route = useRoute();
 
 const loading = ref(false);
-const station = ref<Station | null>(null);
+const station = ref<(Station & { createdAt?: number }) | null>(null);
 const historyData = ref<Array<{ t: number; status: 'safe'|'warn' }>>([]);
 const editVisible = ref(false);
 const editForm = ref<Partial<Station>>({});
