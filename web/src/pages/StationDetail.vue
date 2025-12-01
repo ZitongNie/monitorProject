@@ -21,252 +21,316 @@
       </div>
     </template>
 
-    <div v-if="station" class="detail-content">
-      <!-- 基本信息 -->
-      <el-descriptions title="基本信息" :column="2" border>
-        <el-descriptions-item label="测站ID">{{ station.id }}</el-descriptions-item>
-        <el-descriptions-item label="测站名称">{{ station.name }}</el-descriptions-item>
-        <el-descriptions-item label="经度">{{ station.lng }}</el-descriptions-item>
-        <el-descriptions-item label="纬度">{{ station.lat }}</el-descriptions-item>
-        <el-descriptions-item label="当前状态">
-          <el-tag :type="station.status === 'warn' ? 'danger' : 'success'" effect="dark">
-            {{ station.status === 'warn' ? '预警' : '安全' }}
-          </el-tag>
+    <div v-if="detail" class="detail-content">
+      <el-descriptions title="基础信息" :column="3" border>
+        <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
+        <el-descriptions-item label="监测站编号">{{ detail.stationCode }}</el-descriptions-item>
+        <el-descriptions-item label="名称">{{ detail.name }}</el-descriptions-item>
+        <el-descriptions-item label="RTUID">{{ detail.rtuid }}</el-descriptions-item>
+        <el-descriptions-item label="水库编码">{{ detail.reservoirCode }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="detail.status===1? 'success':'info'" effect="dark">{{ detail.status===1? '在线':'离线' }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间" v-if="station && station.createdAt">
-          {{ formatDate(station.createdAt) }}
-        </el-descriptions-item>
+        <el-descriptions-item label="联系人">{{ detail.contactPerson || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="联系电话">{{ detail.contactPhone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="地址" :span="3">{{ detail.address || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ detail.createTime }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ detail.updateTime }}</el-descriptions-item>
       </el-descriptions>
 
-      <!-- 现场照片 -->
-      <div v-if="station.picture" class="photo-section">
-        <h3>现场照片</h3>
-        <el-image 
-          :src="station.picture" 
-          style="width: 100%; max-width: 600px;" 
-          fit="contain"
-          :preview-src-list="[station.picture]"
-        />
-      </div>
+      <el-descriptions title="当前坐标" :column="4" border class="mt16">
+        <el-descriptions-item label="lngWgs84">{{ detail.lngWgs84 }}</el-descriptions-item>
+        <el-descriptions-item label="latWgs84">{{ detail.latWgs84 }}</el-descriptions-item>
+        <el-descriptions-item label="lngBd09">{{ detail.lngBd09 }}</el-descriptions-item>
+        <el-descriptions-item label="latBd09">{{ detail.latBd09 }}</el-descriptions-item>
+      </el-descriptions>
+      <el-descriptions title="初始安装坐标" :column="4" border class="mt16">
+        <el-descriptions-item label="initLngWgs84">{{ detail.initLngWgs84 }}</el-descriptions-item>
+        <el-descriptions-item label="initLatWgs84">{{ detail.initLatWgs84 }}</el-descriptions-item>
+        <el-descriptions-item label="initLngBd09">{{ detail.initLngBd09 }}</el-descriptions-item>
+        <el-descriptions-item label="initLatBd09">{{ detail.initLatBd09 }}</el-descriptions-item>
+      </el-descriptions>
 
-      <!-- 历史监测数据图表 -->
-      <div class="chart-section">
-        <h3>历史监测数据</h3>
-        <div v-if="historyData.length > 0">
-          <v-chart :option="chartOption" style="height: 400px;" autoresize />
+      <!-- 实时数据 -->
+      <div class="mt24">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0">实时数据</h3>
+          <el-space>
+            <el-button size="small" @click="fetchRealtime">刷新实时</el-button>
+          </el-space>
         </div>
-        <el-empty v-else description="暂无历史数据" :image-size="120" />
+        <el-empty v-if="!realtime" description="未加载实时数据" />
+        <el-descriptions v-else :column="4" border :title="'报告时间: '+ realtime.realTimeData?.reportTime">
+          <el-descriptions-item label="termiteStatus">{{ realtime.realTimeData?.termiteStatus }}</el-descriptions-item>
+          <el-descriptions-item label="devicePower">{{ realtime.realTimeData?.devicePower }}</el-descriptions-item>
+          <el-descriptions-item label="signalStrength">{{ realtime.realTimeData?.signalStrength }}</el-descriptions-item>
+          <el-descriptions-item label="isAlert">{{ realtime.realTimeData?.isAlert }}</el-descriptions-item>
+        </el-descriptions>
       </div>
 
-      <!-- 历史记录表格 -->
-      <div class="history-table-section">
-        <h3>历史记录</h3>
-        <el-table :data="historyData" :style="{ width: '100%' }" :max-height="300">
-          <el-table-column prop="t" label="时间" width="180">
-            <template #default="{ row }">{{ formatDate(row.t) }}</template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态">
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'warn' ? 'danger' : 'success'" size="small">
-          {{ row.status === 'warn' ? '预警' : '安全' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
+      <!-- 预警信息 -->
+      <div class="mt24">
+        <h3 style="margin:0">预警</h3>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <h4>未处理</h4>
+            <el-table :data="realtime?.alerts?.openAlerts || []" size="small" :max-height="240">
+              <el-table-column prop="alertId" label="ID" width="70" />
+              <el-table-column prop="alertTime" label="时间" width="160" />
+              <el-table-column prop="alertDesc" label="描述" />
+            </el-table>
+          </el-col>
+          <el-col :span="12">
+            <h4>近期已处理</h4>
+            <el-table :data="realtime?.alerts?.recentHandledAlerts || []" size="small" :max-height="240">
+              <el-table-column prop="alertId" label="ID" width="70" />
+              <el-table-column prop="alertTime" label="时间" width="160" />
+              <el-table-column prop="alertDesc" label="描述" />
+              <el-table-column prop="handler" label="处理人" width="90" />
+            </el-table>
+          </el-col>
+        </el-row>
+      </div>
+
+      <!-- 图片 -->
+      <div class="mt24">
+        <h3 style="margin:0">最近图片</h3>
+        <el-empty v-if="!(realtime?.images?.length)" description="无图片" />
+        <el-space wrap v-else>
+          <el-card v-for="img in realtime!.images" :key="img.imageCode" shadow="hover" body-style="padding:4px" style="width:160px">
+            <div style="font-size:12px;">{{ img.reportTime }}</div>
+            <div style="margin-top:4px; height:100px; background:#f5f5f5; display:flex;align-items:center;justify-content:center;font-size:12px; color:#999;">{{ img.imageCode }}</div>
+          </el-card>
+        </el-space>
       </div>
     </div>
 
-    <el-empty v-else description="测站不存在" />
+    <el-empty v-else description="监测站不存在" />
   </el-card>
 
-  <!-- 编辑弹窗 -->
-  <el-dialog v-model="editVisible" title="编辑测站信息" width="500px">
-    <el-form :model="editForm" label-width="100px">
-      <el-form-item label="名称">
-        <el-input v-model="editForm.name" />
-      </el-form-item>
-      <el-form-item label="纬度">
-        <el-input-number v-model="editForm.lat" :precision="6" style="width: 100%" />
-      </el-form-item>
-      <el-form-item label="经度">
-        <el-input-number v-model="editForm.lng" :precision="6" style="width: 100%" />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="editForm.status" style="width: 100%">
-          <el-option label="安全" value="safe" />
-          <el-option label="预警" value="warn" />
-        </el-select>
-      </el-form-item>
+  <!-- 编辑弹窗（完整编辑表单） -->
+  <el-dialog v-model="editVisible" title="编辑白蚁监测站" width="680px">
+    <el-form :model="editForm" label-width="120px" :rules="rules" ref="formRef">
+      <el-row :gutter="12">
+        <el-col :span="12">
+          <el-form-item label="监测站编号" prop="stationCode" required>
+            <el-input v-model="editForm.stationCode" placeholder="请输入监测站编号" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="监测站名称" prop="name" required>
+            <el-input v-model="editForm.name" placeholder="请输入监测站名称" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="设备标识" prop="rtuid" required>
+            <el-input v-model="editForm.rtuid" placeholder="设备唯一标识RTUID" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="水库编码" prop="reservoirCode" required>
+            <el-input v-model="editForm.reservoirCode" placeholder="请输入水库编码" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="设备密码" prop="password" required>
+            <el-input v-model="editForm.password" placeholder="4-20位密码" type="password" show-password clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="状态" prop="status" required>
+            <el-select v-model="editForm.status" placeholder="请选择状态" style="width:100%">
+              <el-option label="离线" :value="0" />
+              <el-option label="在线" :value="1" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="经度(WGS84)" prop="lngWgs84" required>
+            <el-input-number 
+              v-model="editForm.lngWgs84" 
+              :precision="6" 
+              :step="0.0001" 
+              :min="-180" 
+              :max="180"
+              placeholder="请输入经度"
+              controls-position="right"
+              style="width:100%" 
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="纬度(WGS84)" prop="latWgs84" required>
+            <el-input-number 
+              v-model="editForm.latWgs84" 
+              :precision="6" 
+              :step="0.0001" 
+              :min="-90" 
+              :max="90"
+              placeholder="请输入纬度"
+              controls-position="right"
+              style="width:100%" 
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="24">
+          <el-form-item label="安装地址" prop="address" required>
+            <el-input v-model="editForm.address" placeholder="请输入安装地址" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="联系人" prop="contactPerson">
+            <el-input v-model="editForm.contactPerson" placeholder="联系人姓名(可选)" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="联系电话" prop="contactPhone">
+            <el-input v-model="editForm.contactPhone" placeholder="11位手机号(可选)" clearable maxlength="11" />
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="editVisible = false">取消</el-button>
-      <el-button type="primary" @click="saveEdit">保存</el-button>
+      <el-space>
+        <el-button @click="editVisible=false">取消</el-button>
+        <el-button type="primary" @click="saveEdit" :loading="saving">保存</el-button>
+      </el-space>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { listStations, updateStation, getStationHistory, type Station } from '../services/stations';
 import { ElMessage } from 'element-plus';
 import { ArrowLeft } from '@element-plus/icons-vue';
-import { use } from 'echarts/core';
-import VChart from 'vue-echarts';
-import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent } from 'echarts/components';
-import dayjs from 'dayjs';
-
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent]);
+import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
+import type { FormInstance, FormRules } from 'element-plus';
 
 const router = useRouter();
 const route = useRoute();
-
 const loading = ref(false);
-const station = ref<(Station & { createdAt?: number }) | null>(null);
-const historyData = ref<Array<{ t: number; status: 'safe'|'warn' }>>([]);
+const detail = ref<TermiteStation | null>(null);
 const editVisible = ref(false);
-const editForm = ref<Partial<Station>>({});
+const editForm = ref<Partial<TermiteStation>>({});
+const realtime = ref<TermiteRealtimeResponse | null>(null);
+const formRef = ref<FormInstance>();
+const saving = ref(false);
 
-const chartOption = computed(() => {
-  if (!historyData.value.length) return {};
-  const times = historyData.value.map(d => dayjs(d.t).format('MM-DD HH:mm'));
-  const values = historyData.value.map(d => d.status === 'warn' ? 1 : 0);
-  return {
-    title: { text: '状态变化趋势', left: 'center' },
-    tooltip: { 
-      trigger: 'axis',
-      formatter: (params: any) => {
-        const status = params[0].value === 1 ? '预警' : '安全';
-        return `${params[0].name}<br/>状态: ${status}`;
-      }
-    },
-    xAxis: { 
-      type: 'category', 
-      data: times, 
-      axisLabel: { rotate: 45, fontSize: 11 }
-    },
-    yAxis: { 
-      type: 'value', 
-      min: 0, 
-      max: 1,
-      interval: 1,
-      axisLabel: { 
-        formatter: (v: number) => v === 1 ? '预警' : '安全' 
-      }
-    },
-    dataZoom: [
-      { type: 'inside', start: 0, end: 100 },
-      { start: 0, end: 100 }
-    ],
-    series: [{ 
-      name: '状态', 
-      type: 'line', 
-      data: values, 
-      step: 'end',
-      lineStyle: { color: '#409EFF', width: 2 },
-      itemStyle: { color: '#409EFF' },
-      areaStyle: { color: 'rgba(64, 158, 255, 0.1)' }
-    }]
-  };
-});
+const rules: FormRules = {
+  stationCode: [
+    { required: true, message: '请输入监测站编号', trigger: 'blur' },
+    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+  ],
+  name: [
+    { required: true, message: '请输入监测站名称', trigger: 'blur' },
+    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+  ],
+  rtuid: [
+    { required: true, message: '请输入设备唯一标识(RTUID)', trigger: 'blur' },
+    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+  ],
+  reservoirCode: [
+    { required: true, message: '请输入水库编码', trigger: 'blur' },
+    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入设备密码', trigger: 'blur' },
+    { min: 4, max: 20, message: '长度在 4 到 20 个字符', trigger: 'blur' }
+  ],
+  status: [
+    { required: true, message: '请选择状态', trigger: 'change' }
+  ],
+  address: [
+    { required: true, message: '请输入安装地址', trigger: 'blur' },
+    { max: 200, message: '最多 200 个字符', trigger: 'blur' }
+  ],
+  lngWgs84: [
+    { required: true, type: 'number', message: '请输入经度(WGS84坐标系)', trigger: 'blur' },
+    { type: 'number', min: -180, max: 180, message: '经度范围: -180 到 180', trigger: 'blur' }
+  ],
+  latWgs84: [
+    { required: true, type: 'number', message: '请输入纬度(WGS84坐标系)', trigger: 'blur' },
+    { type: 'number', min: -90, max: 90, message: '纬度范围: -90 到 90', trigger: 'blur' }
+  ],
+  contactPerson: [
+    { max: 50, message: '最多 50 个字符', trigger: 'blur' }
+  ],
+  contactPhone: [
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+  ]
+};
 
-function formatDate(timestamp: number) {
-  return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss');
-}
+function goBack() { router.back(); }
 
-function goBack() {
-  router.back();
-}
-
-async function loadData() {
+async function loadDetail() {
   const id = Number(route.query.id);
-  if (!id) {
-    ElMessage.error('缺少测站ID参数');
-    return;
-  }
-
+  if (!id) { ElMessage.error('缺少ID'); return; }
   loading.value = true;
   try {
-    // 获取测站列表并找到对应的测站
-    const stations = await listStations();
-    station.value = stations.find(s => s.id === id) || null;
-    
-    if (!station.value) {
-      ElMessage.error('测站不存在');
-      return;
-    }
-
-    // 加载历史数据
-    historyData.value = await getStationHistory(id);
-  } catch (error: any) {
-    ElMessage.error(error?.message || '加载数据失败');
-  } finally {
-    loading.value = false;
-  }
+    detail.value = await getTermiteStationDetail(id);
+  } catch (e: any) { ElMessage.error(e.message || '加载失败'); } finally { loading.value = false; }
 }
 
-function openEditDialog() {
-  if (station.value) {
-    editForm.value = { ...station.value };
-    editVisible.value = true;
-  }
+function openEditDialog() { 
+  if (detail.value) { 
+    editForm.value = { 
+      id: detail.value.id, 
+      stationCode: detail.value.stationCode,
+      name: detail.value.name, 
+      rtuid: detail.value.rtuid,
+      reservoirCode: detail.value.reservoirCode,
+      password: detail.value.password || '123456',
+      status: detail.value.status, 
+      lngWgs84: detail.value.lngWgs84, 
+      latWgs84: detail.value.latWgs84,
+      address: detail.value.address,
+      contactPerson: detail.value.contactPerson,
+      contactPhone: detail.value.contactPhone
+    }; 
+    editVisible.value = true; 
+  } 
 }
 
 async function saveEdit() {
-  if (!station.value || !editForm.value.id) return;
+  if (!editForm.value.id || !formRef.value) return;
   
   try {
-    await updateStation(editForm.value.id, editForm.value);
-    ElMessage.success('保存成功');
-    editVisible.value = false;
-    await loadData();
-  } catch (error: any) {
-    ElMessage.error(error?.message || '保存失败');
+    // 验证表单
+    await formRef.value.validate();
+  } catch (error) {
+    ElMessage.warning('请填写必填字段');
+    return;
+  }
+  
+  saving.value = true;
+  try { 
+    await updateTermiteStation(editForm.value.id, editForm.value); 
+    ElMessage.success('保存成功'); 
+    editVisible.value = false; 
+    await loadDetail(); 
+  } catch (e: any) { 
+    ElMessage.error(e.message || '保存失败'); 
+  } finally {
+    saving.value = false;
   }
 }
 
-async function refreshData() {
-  await loadData();
-  ElMessage.success('数据已刷新');
+async function refreshData() { await loadDetail(); ElMessage.success('已刷新'); }
+
+async function fetchRealtime() {
+  if (!detail.value) return; try { realtime.value = await queryTermiteRealtime({ id: detail.value.id }); ElMessage.success('实时数据已更新'); } catch (e: any) { ElMessage.error(e.message || '获取实时数据失败'); }
 }
 
-onMounted(() => {
-  loadData();
-});
+onMounted(() => { loadDetail(); });
 </script>
 
 <style scoped>
-.detail-content {
-  padding: 8px 0;
-}
-
-:deep(.el-card) {
-  border: none;
-  box-shadow: none;
-}
-
-:deep(.el-card__header) {
-  border-bottom: 1px solid #e4e7ed;
-  padding: 16px 20px;
-}
-
-.photo-section,
-.chart-section,
-.history-table-section,
-.action-section {
-  margin-top: 32px;
-}
-
-.photo-section h3,
-.chart-section h3,
-.history-table-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  border-left: 4px solid #409EFF;
-  padding-left: 12px;
-}
+.detail-content { padding:8px 0; }
+.mt16 { margin-top:16px; }
+.mt24 { margin-top:24px; }
+:deep(.el-card) { border:none; box-shadow:none; }
+:deep(.el-card__header) { border-bottom:1px solid #e4e7ed; padding:16px 20px; }
+h3 { font-size:16px; font-weight:600; color:#303133; }
+h4 { margin:4px 0; font-weight:500; }
 </style>

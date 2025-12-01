@@ -5,7 +5,15 @@
 -->
 <template>
   <el-card :shadow="'never'" :bordered="false">
-    <template #header>用户管理（管理员）</template>
+    <template #header>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>用户管理（管理员）</span>
+        <el-space>
+          <el-button type="primary" @click="openEdit()">新增用户</el-button>
+          <el-button @click="load">刷新</el-button>
+        </el-space>
+      </div>
+    </template>
     
     <!-- 搜索栏：支持按用户名、角色、状态筛选 -->
     <el-form :inline="true" :model="searchForm" style="margin-bottom:12px;">
@@ -29,16 +37,10 @@
         <el-button @click="onReset">重置</el-button>
       </el-form-item>
     </el-form>
-
-    <!-- 操作按钮 -->
-    <el-space>
-      <el-button type="primary" @click="openEdit()">新增用户</el-button>
-      <el-button @click="load">刷新</el-button>
-    </el-space>
     
     <!-- 用户列表表格 -->
     <!-- style 字符串在严格 TS 下会被推断为传递给组件的 props，需改为对象形式避免类型不匹配错误 -->
-    <el-table :data="items" :style="{ marginTop: '12px', width: '100%' }" height="580">
+    <el-table :data="items" :style="{ marginTop: '12px', width: '100%' }" max-height="calc(100vh - 320px)" size="default">
       <el-table-column label="序号" width="80" type="index" :index="getIndex" />
       <el-table-column prop="username" label="用户名" min-width="120" />
       <el-table-column prop="realName" label="姓名" min-width="120" />
@@ -135,7 +137,7 @@ const form = ref<any>({ role: 'user', status: 1 });
 const searchForm = ref<{ username?: string; role?: 'admin'|'user'; status?: 0|1 }>({});
 
 // 分页信息
-const pagination = ref({ pageNum: 1, pageSize: 10, total: 0, pages: 0 });
+const pagination = ref({ pageNum: 1, pageSize: 20, total: 0, pages: 0 });
 
 // 表单验证规则
 const formRules: any = {
@@ -167,16 +169,21 @@ function getIndex(index: number) {
 
 // 加载用户列表(带搜索和分页)
 async function load() {
-  const result = await listUsers({
-    username: searchForm.value.username,
-    role: searchForm.value.role,
-    status: searchForm.value.status,
-    pageNum: pagination.value.pageNum,
-    pageSize: pagination.value.pageSize
-  });
-  items.value = result.list;
-  pagination.value.total = result.total;
-  pagination.value.pages = result.pages;
+  try {
+    const result = await listUsers({
+      username: searchForm.value.username,
+      role: searchForm.value.role,
+      status: searchForm.value.status,
+      pageNum: pagination.value.pageNum,
+      pageSize: pagination.value.pageSize
+    });
+    items.value = result.list;
+    pagination.value.total = result.total;
+    pagination.value.pages = result.pages;
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '加载用户列表失败');
+    console.error('加载用户列表失败:', e);
+  }
 }
 
 // 执行搜索(重置到第一页)
@@ -288,10 +295,21 @@ load();
 :deep(.el-card) {
   border: none;
   box-shadow: none;
+  height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
 }
 
 :deep(.el-card__header) {
   border-bottom: 1px solid #e4e7ed;
-  padding: 16px 20px;
+  padding: 12px 16px;
+  flex-shrink: 0;
+}
+
+:deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>

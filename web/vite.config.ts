@@ -30,10 +30,16 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 5173,
     proxy: {
-      '/api': {
+      // 登录等 sys 接口需要去掉 /api 前缀
+      '/api/sys': {
         target: proxyTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      // 其他业务接口保留 /api 前缀
+      '/api': {
+        target: proxyTarget,
+        changeOrigin: true
       },
       '/ws': {
         target: proxyTarget.replace(/^http/, 'ws'),

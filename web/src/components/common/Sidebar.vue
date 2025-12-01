@@ -1,5 +1,5 @@
 <template>
-  <el-menu :default-active="active" class="el-menu-vertical-demo" router unique-opened>
+  <el-menu :default-active="active" :default-openeds="['/admin']" class="el-menu-vertical-demo" router>
     <el-menu-item index="/dashboard"><el-icon><DataLine /></el-icon>概览</el-menu-item>
     <el-menu-item index="/map"><el-icon><MapLocation /></el-icon>地图</el-menu-item>
     <el-menu-item index="/stations"><el-icon><OfficeBuilding /></el-icon>白蚁测站</el-menu-item>
