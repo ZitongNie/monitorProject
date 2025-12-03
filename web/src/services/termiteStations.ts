@@ -314,14 +314,18 @@ export async function queryTermiteRealtime(body: TermiteRealtimeRequest): Promis
     if (imageLimit < 1 || imageLimit > 20) throw new Error('参数校验失败：imageLimit 必须在 1..20');
     if (handledMonths < 1 || handledMonths > 12) throw new Error('参数校验失败：handledMonths 必须在 1..12');
 
-    // 构造最近图片（倒序时间）
+    // 构造最近图片（倒序时间），使用公共占位图API确保可显示
     const images: ImageDTO[] = [];
     if (body.includeImages !== false) {
       for (let i = 0; i < imageLimit; i++) {
         const t = new Date(Date.now() - i * 5 * 60 * 1000); // 每张间隔5分钟
         const ts = t.toISOString();
         const code = `TS_${target.rtuid}_${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}${String(t.getHours()).padStart(2,'0')}${String(t.getMinutes()).padStart(2,'0')}${String(t.getSeconds()).padStart(2,'0')}`;
-        images.push({ imageCode: code, imagePath: `/images/termite/${t.toISOString().slice(0,10)}/${target.rtuid}_${String(t.getHours()).padStart(2,'0')}${String(t.getMinutes()).padStart(2,'0')}${String(t.getSeconds()).padStart(2,'0')}.jpg`, reportTime: ts, isComplete: 1 });
+        // 使用 picsum.photos 公共占位图服务，每张图不同尺寸以示区别
+        const w = 240 + (i % 3) * 20;
+        const h = 160 + (i % 3) * 10;
+        const placeholderUrl = `https://picsum.photos/${w}/${h}?random=${i}`;
+        images.push({ imageCode: code, imagePath: placeholderUrl, reportTime: ts, isComplete: 1 });
       }
     }
 

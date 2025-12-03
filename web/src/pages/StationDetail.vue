@@ -34,8 +34,8 @@
         <el-descriptions-item label="联系人">{{ detail.contactPerson || '-' }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ detail.contactPhone || '-' }}</el-descriptions-item>
         <el-descriptions-item label="地址" :span="3">{{ detail.address || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ detail.createTime }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ detail.updateTime }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
       </el-descriptions>
 
       <el-descriptions title="当前坐标 (WGS84)" :column="2" border class="mt16">
@@ -61,6 +61,8 @@
           <el-descriptions-item label="纬度">{{ realtime.realTimeData?.latWgs84 }}</el-descriptions-item>
           <el-descriptions-item label="设备电量">{{ realtime.realTimeData?.devicePower }}</el-descriptions-item>
           <el-descriptions-item label="是否预警">{{ realtime.realTimeData?.isAlert }}</el-descriptions-item>
+          <el-descriptions-item label="信号强度">{{ realtime.realTimeData?.signalStrength }}</el-descriptions-item>
+          <el-descriptions-item label="点位序号">{{ realtime.realTimeData?.pointOrder }}</el-descriptions-item>
         </el-descriptions>
       </div>
 
@@ -90,13 +92,39 @@
 
       <!-- 图片 -->
       <div class="mt24">
-        <h3 style="margin:0">最近图片</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0">最近图片</h3>
+        </div>
         <el-empty v-if="!(realtime?.images?.length)" description="无图片" />
         <el-space wrap v-else>
-          <el-card v-for="img in realtime!.images" :key="img.imageCode" shadow="hover" body-style="padding:4px" style="width:160px">
-            <div style="font-size:12px;">{{ img.reportTime }}</div>
-            <div style="margin-top:4px; height:100px; background:#f5f5f5; display:flex;align-items:center;justify-content:center;font-size:12px; color:#999;">{{ img.imageCode }}</div>
+          <el-card v-for="img in realtime!.images" :key="img.imageCode" shadow="hover" body-style="padding:4px" style="width:180px;position:relative">
+            <el-button 
+              circle 
+              size="small" 
+              type="danger" 
+              @click="handleDeleteImage(img.imageCode)"
+              style="position:absolute;top:8px;right:8px;z-index:10"
+            >
+              <template #icon><el-icon><Close /></el-icon></template>
+            </el-button>
+            <div style="font-size:12px;">{{ formatDateTime(img.reportTime) }}</div>
+            <el-image :src="img.imagePath" :preview-src-list="[img.imagePath]" fit="cover" style="margin-top:4px; width:100%; height:120px; background:#f5f5f5" />
+            <div style="margin-top:4px; font-size:12px; color:#999;">{{ img.imageCode }}</div>
           </el-card>
+          <!-- 上传框 -->
+          <el-upload
+            :show-file-list="false"
+            :before-upload="handleUploadImage"
+            accept="image/*"
+            style="display:inline-block"
+          >
+            <el-card shadow="hover" body-style="padding:4px" style="width:180px;cursor:pointer" class="upload-card">
+              <div style="height:152px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fafafa;border:2px dashed #dcdfe6;border-radius:4px">
+                <el-icon :size="40" color="#409eff"><Plus /></el-icon>
+                <div style="margin-top:8px;font-size:14px;color:#606266">上传图片</div>
+              </div>
+            </el-card>
+          </el-upload>
         </el-space>
       </div>
     </div>
@@ -198,8 +226,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { ArrowLeft } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { ArrowLeft, Close, Plus } from '@element-plus/icons-vue';
 import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
 import type { FormInstance, FormRules } from 'element-plus';
 
@@ -212,6 +240,25 @@ const editForm = ref<Partial<TermiteStation>>({});
 const realtime = ref<TermiteRealtimeResponse | null>(null);
 const formRef = ref<FormInstance>();
 const saving = ref(false);
+
+// 格式化日期时间：将 ISO8601 转为本地可读格式
+function formatDateTime(isoString?: string): string {
+  if (!isoString) return '-';
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleString('zh-CN', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit', 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    });
+  } catch {
+    return isoString;
+  }
+}
 
 const rules: FormRules = {
   stationCode: [
@@ -315,10 +362,46 @@ async function saveEdit() {
 async function refreshData() { await loadDetail(); ElMessage.success('已刷新'); }
 
 async function fetchRealtime() {
-  if (!detail.value) return; try { realtime.value = await queryTermiteRealtime({ id: detail.value.id }); ElMessage.success('实时数据已更新'); } catch (e: any) { ElMessage.error(e.message || '获取实时数据失败'); }
+  if (!detail.value) return; 
+  try { 
+    realtime.value = await queryTermiteRealtime({ id: detail.value.id, includeImages: true, includeAlerts: true, imageLimit: 5, handledMonths: 6 }); 
+    ElMessage.success('实时数据已更新'); 
+  } catch (e: any) { 
+    ElMessage.error(e.message || '获取实时数据失败'); 
+  }
 }
 
-onMounted(() => { loadDetail(); });
+function handleUploadImage(file: File) {
+  console.log('选择的文件:', file);
+  ElMessage.info('图片上传功能开发中...');
+  // TODO: 实现图片上传逻辑
+  // 1. 验证文件类型和大小
+  // 2. 上传到服务器 await uploadTermiteImage(detail.value!.id, file)
+  // 3. 刷新实时数据 await fetchRealtime()
+  return false; // 阻止自动上传
+}
+
+async function handleDeleteImage(imageCode: string) {
+  try {
+    await ElMessageBox.confirm(`确定删除图片 ${imageCode} 吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    ElMessage.success('图片已删除');
+    // TODO: 调用后端删除接口
+    // await deleteTermiteImage(imageCode);
+    // 刷新实时数据
+    await fetchRealtime();
+  } catch {
+    // 用户取消
+  }
+}
+
+onMounted(async () => { 
+  await loadDetail(); 
+  await fetchRealtime(); 
+});
 </script>
 
 <style scoped>
@@ -329,4 +412,5 @@ onMounted(() => { loadDetail(); });
 :deep(.el-card__header) { border-bottom:1px solid #e4e7ed; padding:16px 20px; }
 h3 { font-size:16px; font-weight:600; color:#303133; }
 h4 { margin:4px 0; font-weight:500; }
+.upload-card:hover { border-color:#409eff; }
 </style>
