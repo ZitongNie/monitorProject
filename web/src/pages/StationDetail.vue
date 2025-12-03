@@ -38,17 +38,13 @@
         <el-descriptions-item label="更新时间">{{ detail.updateTime }}</el-descriptions-item>
       </el-descriptions>
 
-      <el-descriptions title="当前坐标" :column="4" border class="mt16">
-        <el-descriptions-item label="lngWgs84">{{ detail.lngWgs84 }}</el-descriptions-item>
-        <el-descriptions-item label="latWgs84">{{ detail.latWgs84 }}</el-descriptions-item>
-        <el-descriptions-item label="lngBd09">{{ detail.lngBd09 }}</el-descriptions-item>
-        <el-descriptions-item label="latBd09">{{ detail.latBd09 }}</el-descriptions-item>
+      <el-descriptions title="当前坐标 (WGS84)" :column="2" border class="mt16">
+        <el-descriptions-item label="经度">{{ detail.lngWgs84 }}</el-descriptions-item>
+        <el-descriptions-item label="纬度">{{ detail.latWgs84 }}</el-descriptions-item>
       </el-descriptions>
-      <el-descriptions title="初始安装坐标" :column="4" border class="mt16">
-        <el-descriptions-item label="initLngWgs84">{{ detail.initLngWgs84 }}</el-descriptions-item>
-        <el-descriptions-item label="initLatWgs84">{{ detail.initLatWgs84 }}</el-descriptions-item>
-        <el-descriptions-item label="initLngBd09">{{ detail.initLngBd09 }}</el-descriptions-item>
-        <el-descriptions-item label="initLatBd09">{{ detail.initLatBd09 }}</el-descriptions-item>
+      <el-descriptions title="初始安装坐标 (WGS84)" :column="2" border class="mt16">
+        <el-descriptions-item label="经度">{{ detail.initLngWgs84 }}</el-descriptions-item>
+        <el-descriptions-item label="纬度">{{ detail.initLatWgs84 }}</el-descriptions-item>
       </el-descriptions>
 
       <!-- 实时数据 -->
@@ -61,10 +57,10 @@
         </div>
         <el-empty v-if="!realtime" description="未加载实时数据" />
         <el-descriptions v-else :column="4" border :title="'报告时间: '+ realtime.realTimeData?.reportTime">
-          <el-descriptions-item label="termiteStatus">{{ realtime.realTimeData?.termiteStatus }}</el-descriptions-item>
-          <el-descriptions-item label="devicePower">{{ realtime.realTimeData?.devicePower }}</el-descriptions-item>
-          <el-descriptions-item label="signalStrength">{{ realtime.realTimeData?.signalStrength }}</el-descriptions-item>
-          <el-descriptions-item label="isAlert">{{ realtime.realTimeData?.isAlert }}</el-descriptions-item>
+          <el-descriptions-item label="经度">{{ realtime.realTimeData?.lngWgs84 }}</el-descriptions-item>
+          <el-descriptions-item label="纬度">{{ realtime.realTimeData?.latWgs84 }}</el-descriptions-item>
+          <el-descriptions-item label="设备电量">{{ realtime.realTimeData?.devicePower }}</el-descriptions-item>
+          <el-descriptions-item label="是否预警">{{ realtime.realTimeData?.isAlert }}</el-descriptions-item>
         </el-descriptions>
       </div>
 
