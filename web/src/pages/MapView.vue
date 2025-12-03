@@ -34,15 +34,6 @@
             <el-descriptions-item label="测站编号">
               {{ selectedStation.stationCode }}
             </el-descriptions-item>
-            <el-descriptions-item label="测站ID">
-              {{ selectedStation.id }}
-            </el-descriptions-item>
-            <el-descriptions-item label="RTUID">
-              {{ selectedStation.rtuid }}
-            </el-descriptions-item>
-            <el-descriptions-item label="水库编码">
-              {{ selectedStation.reservoirCode }}
-            </el-descriptions-item>
             <el-descriptions-item label="当前状态">
               <el-button 
                 :type="selectedStation.status === 1 ? 'success' : 'info'" 
@@ -52,32 +43,14 @@
                 {{ selectedStation.status === 1 ? '在线' : '离线' }}
               </el-button>
             </el-descriptions-item>
-            <el-descriptions-item label="经度(BD09)">
-              {{ selectedStation.lngBd09 }}
-            </el-descriptions-item>
-            <el-descriptions-item label="纬度(BD09)">
-              {{ selectedStation.latBd09 }}
-            </el-descriptions-item>
-            <el-descriptions-item label="经度(WGS84)">
+            <el-descriptions-item label="经度">
               {{ selectedStation.lngWgs84 }}
             </el-descriptions-item>
-            <el-descriptions-item label="纬度(WGS84)">
+            <el-descriptions-item label="纬度">
               {{ selectedStation.latWgs84 }}
             </el-descriptions-item>
             <el-descriptions-item label="安装地址">
               {{ selectedStation.address }}
-            </el-descriptions-item>
-            <el-descriptions-item label="联系人" v-if="selectedStation.contactPerson">
-              {{ selectedStation.contactPerson }}
-            </el-descriptions-item>
-            <el-descriptions-item label="联系电话" v-if="selectedStation.contactPhone">
-              {{ selectedStation.contactPhone }}
-            </el-descriptions-item>
-            <el-descriptions-item label="创建时间" v-if="selectedStation.createTime">
-              {{ formatDateTime(selectedStation.createTime) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="更新时间" v-if="selectedStation.updateTime">
-              {{ formatDateTime(selectedStation.updateTime) }}
             </el-descriptions-item>
           </el-descriptions>
           
