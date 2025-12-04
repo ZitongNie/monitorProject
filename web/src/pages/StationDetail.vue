@@ -326,7 +326,7 @@ async function loadDetail() {
       if (!found && reservoirCode) found = page.records.find(s => s.reservoirCode === reservoirCode);
       if (found) detail.value = found as any;
     }
-    // if (!detail.value) throw new Error('白蚁监测站不存在');
+    if (!detail.value) throw new Error('白蚁监测站不存在');
   } catch (e: any) { ElMessage.error(e.message || '加载失败'); } finally { loading.value = false; }
 }
 
