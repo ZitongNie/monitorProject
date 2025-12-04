@@ -302,7 +302,16 @@ const statsNoData = computed(() => records.value.filter(s => s.isAlert === undef
 function onSearch() { query.pageNo = 1; load(); }
 function onReset() { Object.assign(query, { stationCode: undefined, name: undefined, rtuid: undefined, reservoirCode: undefined, status: undefined, contactPerson: undefined, contactPhone: undefined, pageNo: 1, pageSize: query.pageSize }); load(); }
 
-function viewDetail(row: TermiteStation) { router.push({ path: '/station-detail', query: { id: row.id } }); }
+function viewDetail(row: TermiteStation) {
+  router.push({ 
+    path: '/station-detail', 
+    query: { 
+      id: row.id, 
+      rtuid: (row as any).rtuid, 
+      reservoirCode: (row as any).reservoirCode 
+    } 
+  });
+}
 
 function openEdit(row?: TermiteStation) {
   if (row) {

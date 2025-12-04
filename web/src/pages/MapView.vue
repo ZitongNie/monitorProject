@@ -109,7 +109,15 @@ function formatDateTime(dateStr: string) {
 
 function viewDetail() {
   if (selectedStation.value) {
-    router.push({ path: '/station-detail', query: { id: selectedStation.value.id } });
+    const s = selectedStation.value;
+    router.push({ 
+      path: '/station-detail', 
+      query: { 
+        id: s.id, 
+        rtuid: s.rtuid, 
+        reservoirCode: s.reservoirCode 
+      } 
+    });
   }
 }
 

@@ -228,7 +228,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Close, Plus } from '@element-plus/icons-vue';
-import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
+import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, listTermiteStations, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
 import type { FormInstance, FormRules } from 'element-plus';
 
 const router = useRouter();
@@ -307,11 +307,26 @@ const rules: FormRules = {
 function goBack() { router.back(); }
 
 async function loadDetail() {
-  const id = Number(route.query.id);
-  if (!id) { ElMessage.error('缺少ID'); return; }
+  const id = route.query.id ? Number(route.query.id) : undefined as number | undefined;
+  const rtuid = typeof route.query.rtuid === 'string' ? route.query.rtuid : undefined;
+  const reservoirCode = typeof route.query.reservoirCode === 'string' ? route.query.reservoirCode : undefined;
+  if (!id && !rtuid && !reservoirCode) { ElMessage.error('缺少定位参数'); return; }
   loading.value = true;
   try {
-    detail.value = await getTermiteStationDetail(id);
+    // 1) 优先 id 详情接口
+    if (id) {
+      try { detail.value = await getTermiteStationDetail(id); } catch {}
+    }
+    // 2) 若未命中，用列表按 rtuid/reservoirCode 回退匹配
+    if (!detail.value) {
+      const page = await listTermiteStations({ pageNo: 1, pageSize: 500 });
+      let found: any = undefined;
+      if (id) found = page.records.find(s => s.id === id);
+      if (!found && rtuid) found = page.records.find(s => s.rtuid === rtuid);
+      if (!found && reservoirCode) found = page.records.find(s => s.reservoirCode === reservoirCode);
+      if (found) detail.value = found as any;
+    }
+    // if (!detail.value) throw new Error('白蚁监测站不存在');
   } catch (e: any) { ElMessage.error(e.message || '加载失败'); } finally { loading.value = false; }
 }
 
@@ -364,7 +379,11 @@ async function refreshData() { await loadDetail(); ElMessage.success('已刷新'
 async function fetchRealtime() {
   if (!detail.value) return; 
   try { 
-    realtime.value = await queryTermiteRealtime({ id: detail.value.id, includeImages: true, includeAlerts: true, imageLimit: 5, handledMonths: 6 }); 
+    const body: any = { includeImages: true, includeAlerts: true, imageLimit: 5, handledMonths: 6 };
+    if (detail.value.id) body.id = detail.value.id;
+    else if ((detail.value as any).rtuid) body.rtuid = (detail.value as any).rtuid;
+    else if ((detail.value as any).reservoirCode) body.reservoirCode = (detail.value as any).reservoirCode;
+    realtime.value = await queryTermiteRealtime(body); 
     ElMessage.success('实时数据已更新'); 
   } catch (e: any) { 
     ElMessage.error(e.message || '获取实时数据失败'); 
