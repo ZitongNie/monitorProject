@@ -18,7 +18,6 @@
     <el-form :model="query" label-width="96px" inline class="query-form">
       <el-form-item label="监测站编号"><el-input v-model="query.stationCode" placeholder="stationCode" clearable /></el-form-item>
       <el-form-item label="名称"><el-input v-model="query.name" placeholder="名称" clearable /></el-form-item>
-      <el-form-item label="RTUID"><el-input v-model="query.rtuid" placeholder="rtuid" clearable /></el-form-item>
       <el-form-item label="水库编码"><el-input v-model="query.reservoirCode" placeholder="reservoirCode" clearable /></el-form-item>
       <el-form-item label="状态">
         <el-select v-model="query.status" placeholder="全部" clearable style="width:120px">
@@ -27,7 +26,6 @@
         </el-select>
       </el-form-item>
       <el-form-item label="联系人"><el-input v-model="query.contactPerson" placeholder="联系人" clearable /></el-form-item>
-      <el-form-item label="联系电话"><el-input v-model="query.contactPhone" placeholder="电话" clearable /></el-form-item>
       <el-form-item>
         <el-space>
           <el-button type="primary" @click="onSearch">搜索</el-button>
@@ -36,30 +34,48 @@
       </el-form-item>
     </el-form>
 
-    <!-- 统计信息 -->
-    <div class="statistics-bar">
-      <el-space :size="24">
-        <div class="stat-item">
-          <span class="stat-label">总监测点数：</span>
-          <span class="stat-value">{{ total }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">有白蚁：</span>
-          <span class="stat-value stat-danger">{{ statsWithTermites }}个</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">无白蚁：</span>
-          <span class="stat-value stat-success">{{ statsNoTermites }}个</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">无数据：</span>
-          <span class="stat-value stat-info">{{ statsNoData }}个</span>
-        </div>
-      </el-space>
-    </div>
+    <!-- 统计卡片 -->
+    <el-row :gutter="8" style="margin-bottom:8px">
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card-compact" body-style="padding:8px 12px">
+          <div class="stat-compact">
+            <span class="stat-compact-label">测站总数</span>
+            <span class="stat-compact-value">{{ total }}</span>
+            <el-icon class="stat-compact-icon" color="#409eff"><Odometer /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card-compact" body-style="padding:8px 12px">
+          <div class="stat-compact">
+            <span class="stat-compact-label">有白蚁</span>
+            <span class="stat-compact-value">{{ statsWithTermites }}</span>
+            <el-icon class="stat-compact-icon" color="#f56c6c"><Warning /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card-compact" body-style="padding:8px 12px">
+          <div class="stat-compact">
+            <span class="stat-compact-label">无白蚁</span>
+            <span class="stat-compact-value">{{ statsNoTermites }}</span>
+            <el-icon class="stat-compact-icon" color="#67c23a"><CircleCheck /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card-compact" body-style="padding:8px 12px">
+          <div class="stat-compact">
+            <span class="stat-compact-label">无数据</span>
+            <span class="stat-compact-value">{{ statsNoData }}</span>
+            <el-icon class="stat-compact-icon" color="#909399"><QuestionFilled /></el-icon>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
 
     <!-- 列表 -->
-    <el-table :data="records" :style="{ marginTop: '8px' }" max-height="calc(100vh - 360px)" size="default" v-loading="loading">
+    <el-table :data="records" :style="{ marginTop: '8px' }" max-height="calc(100vh - 380px)" size="default" v-loading="loading">
       <el-table-column type="index" label="序号" width="70" :index="getIndex" />
       <el-table-column prop="stationCode" label="监测站编号" min-width="150" />
       <el-table-column prop="name" label="名称" min-width="180" />
@@ -202,6 +218,7 @@
 import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
+import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
 import { listTermiteStations, createTermiteStation, updateTermiteStation, deleteTermiteStation, queryTermiteRealtime, type TermiteStation, type TermiteStationQuery } from '@/services/termiteStations';
 
 // 扩展 TermiteStation 类型以包含 isAlert 属性
@@ -394,30 +411,33 @@ load();
 :deep(.el-card__header) { border-bottom:1px solid #e4e7ed; padding:12px 16px; flex-shrink: 0; }
 :deep(.el-card__body) { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
-/* 统计栏样式 */
-.statistics-bar {
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
-  margin-bottom: 12px;
+/* 统计卡片样式 - 极简紧凑版 */
+.stat-card-compact {
+  border: 1px solid #ebeef5;
+  height: auto;
 }
-.stat-item {
-  display: inline-flex;
+.stat-compact {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  height: 32px;
 }
-.stat-label {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
-  margin-right: 4px;
+.stat-compact-label {
+  font-size: 13px;
+  color: #606266;
+  flex-shrink: 0;
 }
-.stat-value {
-  font-size: 18px;
+.stat-compact-value {
+  font-size: 20px;
   font-weight: 600;
-  color: #fff;
+  color: #303133;
+  flex: 1;
+  line-height: 1;
 }
-.stat-danger { color: #ffeb3b; }
-.stat-success { color: #4caf50; }
-.stat-info { color: #e0e0e0; }
+.stat-compact-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
 
 /* 必填字段标记样式 */
 :deep(.el-form-item.is-required:not(.is-no-asterisk) > .el-form-item__label:before) {

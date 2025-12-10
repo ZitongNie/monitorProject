@@ -7,6 +7,31 @@
   <div class="map-view-container">
     <!-- 左侧：百度地图 -->
     <div class="map-section">
+      <!-- 搜索框 -->
+      <div class="search-bar">
+        <el-select
+          v-model="searchValue"
+          filterable
+          remote
+          reserve-keyword
+          placeholder="搜索监测站名称"
+          :remote-method="searchStations"
+          :loading="searchLoading"
+          @change="selectStation"
+          clearable
+          style="width: 300px"
+        >
+          <el-option
+            v-for="station in searchResults"
+            :key="station.id"
+            :label="station.name"
+            :value="station.id"
+          >
+            <span style="float: left">{{ station.name }}</span>
+            <span style="float: right; color: #8492a6; font-size: 13px">{{ station.stationCode }}</span>
+          </el-option>
+        </el-select>
+      </div>
       <div id="allmap" ref="mapEl" class="map-container"></div>
     </div>
     
@@ -79,7 +104,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { listTermiteStations, deleteTermiteStation, updateTermiteStation, type TermiteStation } from '@/services/termiteStations';
+import { listTermiteStations, deleteTermiteStation, updateTermiteStation, queryTermiteRealtime, type TermiteStation } from '@/services/termiteStations';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Location } from '@element-plus/icons-vue';
 import { use } from 'echarts/core';
@@ -101,6 +126,54 @@ const selectedStation = ref<TermiteStation | null>(null);
 const historyData = ref<Array<{ t: number; status: number }>>([]);
 let hoverOpenTimer: any = null;
 let lastHoverId: string | number | null = null;
+
+// 搜索相关
+const searchValue = ref<number | null>(null);
+const searchResults = ref<TermiteStation[]>([]);
+const searchLoading = ref(false);
+const allStations = ref<TermiteStation[]>([]);
+
+async function searchStations(query: string) {
+  if (!query) {
+    searchResults.value = [];
+    return;
+  }
+  searchLoading.value = true;
+  try {
+    // 从已加载的站点中过滤
+    searchResults.value = allStations.value.filter(station => 
+      station.name.toLowerCase().includes(query.toLowerCase()) ||
+      station.stationCode.toLowerCase().includes(query.toLowerCase())
+    );
+  } finally {
+    searchLoading.value = false;
+  }
+}
+
+function selectStation(stationId: number | null) {
+  if (!stationId) return;
+  
+  const station = allStations.value.find(s => s.id === stationId);
+  if (!station) return;
+  
+  // 设置选中的测站
+  selectedStation.value = station;
+  
+  // 地图中心移动到该测站
+  if (map && station.lngBd09 && station.latBd09) {
+    const point = new BMapGL.Point(station.lngBd09, station.latBd09);
+    map.centerAndZoom(point, 15);
+    
+    // 触发对应的marker点击效果
+    const marker = markers.find(m => m._stationId === station.id);
+    if (marker) {
+      // 模拟点击marker
+      marker.dispatchEvent('click');
+    }
+  }
+  
+  ElMessage.success(`已定位到 ${station.name}`);
+}
 
 function formatDateTime(dateStr: string) {
   if (!dateStr) return '-';
@@ -223,8 +296,24 @@ async function loadData() {
     console.log('[MapView] 获取到测站数据:', page);
     console.log('[MapView] 测站数量:', page.records.length);
     
+    // 拉取实时 isAlert 信息，用于标记颜色
+    const stationsWithRealtime = await Promise.all(
+      page.records.map(async s => {
+        try {
+          const rt = await queryTermiteRealtime({ id: s.id, includeAlerts: false, includeImages: false, imageLimit: 0, handledMonths: 1 });
+          return { ...s, isAlert: rt.realTimeData?.isAlert ?? 0 } as TermiteStation & { isAlert?: number };
+        } catch (e) {
+          console.warn('[MapView] 获取实时数据失败, 使用原始数据:', s.id, e);
+          return { ...s, isAlert: 0 } as TermiteStation & { isAlert?: number };
+        }
+      })
+    );
+    
+    // 保存所有测站数据供搜索使用
+    allStations.value = stationsWithRealtime;
+    
     clearMarkers();
-    await Promise.all(page.records.map(s => addMarker(s)));
+    await Promise.all(stationsWithRealtime.map(s => addMarker(s)));
     console.log('[MapView] 已添加标注数量:', markers.length);
     
     // 自动调整地图视野以包含所有测站
@@ -273,7 +362,11 @@ async function addMarker(station: TermiteStation) {
   
   // 根据状态使用不同颜色的标注图标
   const isOnline = station.status === 1;
-  const markerColor = isOnline ? '#52c41a' : '#ff4d4f';  // 绿色=在线，红色=离线
+  // 正常在线=蓝色，有白蚁=红色，离线=灰色
+  let markerColor = '#8c8c8c';
+  if (isOnline) {
+    markerColor = (station as any).isAlert === 1 ? '#f56c6c' : '#409eff';
+  }
   
   // 创建自定义图标（SVG 格式）
   const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="35" viewBox="0 0 28 35">
@@ -290,6 +383,9 @@ async function addMarker(station: TermiteStation) {
   
   // 创建标注
   const marker = new BMapGL.Marker(point, { icon });
+  
+  // 保存站点ID到marker对象，便于搜索时查找
+  (marker as any)._stationId = station.id;
   
   // 监听鼠标悬停事件 - 显示信息窗口
   marker.addEventListener('mouseover', () => {
@@ -309,7 +405,7 @@ async function addMarker(station: TermiteStation) {
           width: 260, 
           height: 0, 
           enableMessage: false,
-          offset: new BMapGL.Size(0, -45)  // 向上偏移45像素，避免遮挡标注
+          offset: new BMapGL.Size(0, -50)  // 调整更贴近标记
         }
       );
       map.openInfoWindow(infoWindow, point);
@@ -398,6 +494,17 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   position: relative;
+}
+
+.search-bar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1000;
+  background: white;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .map-container {
