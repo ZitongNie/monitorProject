@@ -53,6 +53,7 @@ export interface TermiteStation {
   contactPerson?: string;
   contactPhone?: string;
   status: 0 | 1; // 0=离线 1=在线
+  termiteStatus?: 0 | 1; // 0=无白蚁 1=有白蚁（分页查询新增字段）
   createTime?: string;
   updateTime?: string;
   lngWgs84?: number;
@@ -167,7 +168,9 @@ function getMockList(): TermiteStation[] {
   const createStation = (id: number, code: string, name: string, rtuid: string, reservoirCode: string, wgs84Lng: number, wgs84Lat: number, address: string, person: string, phone: string, status: 0|1) => {
     const { lng: gcjLng, lat: gcjLat } = wgs84ToGcj02(wgs84Lng, wgs84Lat);
     const { lng: bdLng, lat: bdLat } = gcj02ToBd09(gcjLng, gcjLat);
-    return { id, stationCode: code, name, rtuid, reservoirCode, password: '1234', address, contactPerson: person, contactPhone: phone, status, createTime: new Date().toISOString(), updateTime: new Date().toISOString(), lngWgs84: wgs84Lng, latWgs84: wgs84Lat, lngBd09: bdLng, latBd09: bdLat, initLngWgs84: wgs84Lng, initLatWgs84: wgs84Lat, initLngBd09: bdLng, initLatBd09: bdLat };
+    // termiteStatus 模拟：在线更可能有白蚁（仅用于前端演示）
+    const termiteStatus: 0|1 = Math.random() > (status === 1 ? 0.6 : 0.8) ? 1 : 0;
+    return { id, stationCode: code, name, rtuid, reservoirCode, password: '1234', address, contactPerson: person, contactPhone: phone, status, termiteStatus, createTime: new Date().toISOString(), updateTime: new Date().toISOString(), lngWgs84: wgs84Lng, latWgs84: wgs84Lat, lngBd09: bdLng, latBd09: bdLat, initLngWgs84: wgs84Lng, initLatWgs84: wgs84Lat, initLngBd09: bdLng, initLatBd09: bdLat };
   };
   
   const seed: TermiteStation[] = [

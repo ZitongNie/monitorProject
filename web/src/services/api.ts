@@ -5,8 +5,11 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.set('Authorization', `Bearer ${token}`);
+  const raw = localStorage.getItem('token') || import.meta.env.VITE_API_TOKEN;
+  if (raw) {
+    const value = raw.startsWith('Bearer ') ? raw : `Bearer ${raw}`;
+    config.headers.set('Authorization', value);
+  }
   console.log('[api] 发送请求:', {
     method: config.method,
     url: config.url,

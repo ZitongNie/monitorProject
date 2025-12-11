@@ -95,6 +95,13 @@
           <el-button v-else type="info" plain size="small">无数据</el-button>
         </template>
       </el-table-column>
+        <el-table-column prop="termiteStatus" label="白蚁状态" width="110">
+          <template #default="scope">
+            <el-tag :type="scope.row.termiteStatus === 1 ? 'danger' : 'success'">
+              {{ scope.row.termiteStatus === 1 ? '有白蚁' : '正常' }}
+            </el-tag>
+          </template>
+        </el-table-column>
       <el-table-column prop="lngWgs84" label="经度(WGS84)" min-width="140" />
       <el-table-column prop="latWgs84" label="纬度(WGS84)" min-width="140" />
       <el-table-column label="详细" width="120" fixed="right">
