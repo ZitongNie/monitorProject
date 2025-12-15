@@ -88,13 +88,7 @@
           </el-button>
         </template>
       </el-table-column>
-      <el-table-column prop="isAlert" label="白蚁预警" width="120">
-        <template #default="{ row }">
-          <el-button v-if="row.isAlert === 1" type="danger" plain size="small">有白蚁</el-button>
-          <el-button v-else-if="row.isAlert === 0" type="success" plain size="small">无白蚁</el-button>
-          <el-button v-else type="info" plain size="small">无数据</el-button>
-        </template>
-      </el-table-column>
+        <!-- 白蚁预警列移除，统一以后端分页返回的 termiteStatus 展示 -->
         <el-table-column prop="termiteStatus" label="白蚁状态" width="110">
           <template #default="scope">
             <el-tag :type="scope.row.termiteStatus === 1 ? 'danger' : 'success'">
@@ -296,8 +290,7 @@ async function load() {
     const page = await listTermiteStations({ ...query });
     records.value = page.records;
     total.value = page.total;
-    // 批量查询实时预警状态
-    await loadRealtimeAlerts();
+    // 统计直接根据分页返回的 termiteStatus 字段
   } catch (e: any) {
     ElMessage.error(e.message || '加载失败');
   } finally {
@@ -305,23 +298,12 @@ async function load() {
   }
 }
 
-async function loadRealtimeAlerts() {
-  // 并发查询所有站点的实时数据，仅取 isAlert 字段
-  const promises = records.value.map(async (station) => {
-    try {
-      const rt = await queryTermiteRealtime({ id: station.id, includeImages: false, includeAlerts: false });
-      station.isAlert = rt.realTimeData?.isAlert;
-    } catch {
-      station.isAlert = undefined; // 查询失败视为无数据
-    }
-  });
-  await Promise.all(promises);
-}
+// 预警实时查询移除，统计统一与 termiteStatus 对齐
 
 // 统计数据
-const statsWithTermites = computed(() => records.value.filter(s => s.isAlert === 1).length);
-const statsNoTermites = computed(() => records.value.filter(s => s.isAlert === 0).length);
-const statsNoData = computed(() => records.value.filter(s => s.isAlert === undefined).length);
+const statsWithTermites = computed(() => records.value.filter(s => s.termiteStatus === 1).length);
+const statsNoTermites = computed(() => records.value.filter(s => s.termiteStatus === 0).length);
+const statsNoData = computed(() => records.value.filter(s => s.termiteStatus === undefined).length);
 
 function onSearch() { query.pageNo = 1; load(); }
 function onReset() { Object.assign(query, { stationCode: undefined, name: undefined, rtuid: undefined, reservoirCode: undefined, status: undefined, contactPerson: undefined, contactPhone: undefined, pageNo: 1, pageSize: query.pageSize }); load(); }

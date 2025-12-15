@@ -52,6 +52,9 @@
             </el-col>
           </el-row>
 
+          <!-- 饼状图：与“白蚁状态”统计对齐 -->
+          <v-chart :option="stationPieOption" style="height: 240px" autoresize />
+
         </el-card>
       </el-col>
 
@@ -102,6 +105,9 @@
             </el-col>
           </el-row>
 
+          <!-- 饼状图占位：与测站同样结构（目前为占位统计） -->
+          <v-chart :option="pilePieOption" style="height: 240px" autoresize />
+
           <!-- 预警占位已移除 -->
         </el-card>
       </el-col>
@@ -151,10 +157,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, reactive } from 'vue';
+import { onMounted, ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
-import { listTermiteStations, queryTermiteRealtime, type TermiteStation } from '@/services/termiteStations';
+import { listTermiteStations, type TermiteStation } from '@/services/termiteStations';
+import { use } from 'echarts/core';
+import VChart from 'vue-echarts';
+import { CanvasRenderer } from 'echarts/renderers';
+import { PieChart } from 'echarts/charts';
+import { TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components';
+use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent, TitleComponent]);
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const router = useRouter();
@@ -168,6 +180,45 @@ const stats = reactive({
   stationNoTermites: 0,
   stationNoData: 0
 });
+// 饼图配置 - 白蚁测站
+const stationPieOption = computed(() => ({
+  title: { text: '白蚁状态分布', left: 'center' },
+  tooltip: { trigger: 'item' },
+  legend: { bottom: 0 },
+  series: [
+    {
+      name: '白蚁状态',
+      type: 'pie',
+      radius: '60%',
+      data: [
+        { value: stats.stationWithTermites, name: '有白蚁' },
+        { value: stats.stationNoTermites, name: '无白蚁' },
+        { value: stats.stationNoData, name: '无数据' }
+      ],
+      emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.3)' } }
+    }
+  ]
+}));
+
+// 饼图配置 - 电子界桩（占位）
+const pilePieOption = computed(() => ({
+  title: { text: '界桩状态分布', left: 'center' },
+  tooltip: { trigger: 'item' },
+  legend: { bottom: 0 },
+  series: [
+    {
+      name: '界桩状态',
+      type: 'pie',
+      radius: '60%',
+      data: [
+        { value: 0, name: '异常' },
+        { value: 0, name: '正常' },
+        { value: 0, name: '无数据' }
+      ],
+      emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.3)' } }
+    }
+  ]
+}));
 
 interface StationAlert {
   stationId: number;
@@ -242,56 +293,13 @@ async function loadAlerts() {
     const stations = page.records;
     
     stats.stationTotal = page.total;
-    let withTermites = 0;
-    let noTermites = 0;
-    let noData = 0;
-    const alerts: StationAlert[] = [];
-
-    // 并发查询所有站点实时数据
-    await Promise.all(stations.map(async (station: TermiteStation) => {
-      try {
-        const rt = await queryTermiteRealtime({ 
-          id: station.id, 
-          includeImages: false, 
-          includeAlerts: true 
-        });
-        
-        // 统计预警状态
-        if (rt.realTimeData?.isAlert === 1) {
-          withTermites++;
-        } else if (rt.realTimeData?.isAlert === 0) {
-          noTermites++;
-        } else {
-          noData++;
-        }
-
-        // 收集未处理预警
-        if (rt.alerts?.openAlerts) {
-          rt.alerts.openAlerts.forEach(alert => {
-            alerts.push({
-              stationId: station.id,
-              stationCode: station.stationCode,
-              name: station.name,
-              alertId: alert.alertId,
-              alertTime: alert.alertTime,
-              alertDesc: alert.alertDesc || '检测到白蚁活动',
-              handleStatus: alert.handleStatus
-            });
-          });
-        }
-      } catch {
-        noData++;
-      }
-    }));
-
-    stats.stationWithTermites = withTermites;
-    stats.stationNoTermites = noTermites;
-    stats.stationNoData = noData;
+    // 概览统计统一与列表的“白蚁状态”对齐
+    stats.stationWithTermites = stations.filter(s => s.termiteStatus === 1).length;
+    stats.stationNoTermites = stations.filter(s => s.termiteStatus === 0).length;
+    stats.stationNoData = stations.filter(s => s.termiteStatus === undefined).length;
     
-    // 按时间倒序排列预警
-    stationAlerts.value = alerts.sort((a, b) => 
-      new Date(b.alertTime).getTime() - new Date(a.alertTime).getTime()
-    );
+    // 预警列表保持为空或后续单独接口加载（避免阻塞统计）
+    stationAlerts.value = [];
     
     ElMessage.success('数据已刷新');
   } catch (e: any) {
