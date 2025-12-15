@@ -4,59 +4,111 @@
 -->
 <template>
   <div v-loading="loading">
-    <!-- 统计卡片 -->
-    <el-row :gutter="12" style="margin-bottom:12px">
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="测站总数" :value="stats.stationTotal">
-            <template #suffix>
-              <el-icon color="#409eff"><Odometer /></el-icon>
-            </template>
-          </el-statistic>
+    <el-row :gutter="12">
+      <!-- 左侧：白蚁测站概览 -->
+      <el-col :span="12">
+        <el-card shadow="never" body-style="padding:12px 12px 8px 12px">
+          <template #header>
+            <span style="font-weight:600;color:#303133;">白蚁测站总览</span>
+          </template>
+
+          <!-- 统计卡片 -->
+          <el-row :gutter="12" style="margin-bottom:12px">
+            <el-col :span="12">
+              <el-card shadow="hover">
+                <el-statistic title="测站总数" :value="stats.stationTotal">
+                  <template #suffix>
+                    <el-icon color="#409eff"><Odometer /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+            <el-col :span="12">
+              <el-card shadow="hover">
+                <el-statistic title="有白蚁" :value="stats.stationWithTermites">
+                  <template #suffix>
+                    <el-icon color="#f56c6c"><Warning /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+            <el-col :span="12" style="margin-top:12px">
+              <el-card shadow="hover">
+                <el-statistic title="无白蚁" :value="stats.stationNoTermites">
+                  <template #suffix>
+                    <el-icon color="#67c23a"><CircleCheck /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+            <el-col :span="12" style="margin-top:12px">
+              <el-card shadow="hover">
+                <el-statistic title="无数据" :value="stats.stationNoData">
+                  <template #suffix>
+                    <el-icon color="#909399"><QuestionFilled /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+          </el-row>
+
         </el-card>
       </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="有白蚁" :value="stats.stationWithTermites">
-            <template #suffix>
-              <el-icon color="#f56c6c"><Warning /></el-icon>
-            </template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="无白蚁" :value="stats.stationNoTermites">
-            <template #suffix>
-              <el-icon color="#67c23a"><CircleCheck /></el-icon>
-            </template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="无数据" :value="stats.stationNoData">
-            <template #suffix>
-              <el-icon color="#909399"><QuestionFilled /></el-icon>
-            </template>
-          </el-statistic>
+
+      <!-- 右侧：电子界桩概览（占位，同风格） -->
+      <el-col :span="12">
+        <el-card shadow="never" body-style="padding:12px 12px 8px 12px">
+          <template #header>
+            <span style="font-weight:600;color:#303133;">电子界桩总览</span>
+          </template>
+
+          <!-- 统计卡片占位 -->
+          <el-row :gutter="12" style="margin-bottom:12px">
+            <el-col :span="12">
+              <el-card shadow="hover">
+                <el-statistic title="测试" value="-">
+                  <template #suffix>
+                    <el-icon color="#909399"><Odometer /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+            <el-col :span="12">
+              <el-card shadow="hover">
+                <el-statistic title="测试" value="-">
+                  <template #suffix>
+                    <el-icon color="#909399"><Warning /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+            <el-col :span="12" style="margin-top:12px">
+              <el-card shadow="hover">
+                <el-statistic title="测试" value="-">
+                  <template #suffix>
+                    <el-icon color="#909399"><CircleCheck /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+            <el-col :span="12" style="margin-top:12px">
+              <el-card shadow="hover">
+                <el-statistic title="测试" value="-">
+                  <template #suffix>
+                    <el-icon color="#909399"><QuestionFilled /></el-icon>
+                  </template>
+                </el-statistic>
+              </el-card>
+            </el-col>
+          </el-row>
+
+          <!-- 预警占位已移除 -->
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 快速入口 -->
-    <el-card style="margin-bottom:12px">
-      <template #header>快速入口</template>
-      <el-space>
-        <el-button type="primary" @click="$router.push('/map')">地图</el-button>
-        <el-button @click="$router.push('/stations')">白蚁测站</el-button>
-        <el-button @click="$router.push('/piles')">电子界桩</el-button>
-        <el-button @click="$router.push('/analytics')">统计分析</el-button>
-      </el-space>
-    </el-card>
-
-    <!-- 预警信息 -->
-    <el-card>
+    <!-- 实时预警（拆分到下方独立模块） -->
+    <el-card style="margin-top:12px" shadow="never">
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span>实时预警</span>
@@ -64,7 +116,6 @@
         </div>
       </template>
       <el-tabs v-model="activeTab">
-        <!-- 白蚁测站预警 -->
         <el-tab-pane label="白蚁测站预警" name="stations">
           <el-table :data="stationAlerts" size="small" max-height="400">
             <el-table-column type="index" label="#" width="50" />
@@ -91,7 +142,6 @@
           </el-table>
           <el-empty v-if="!stationAlerts.length" description="暂无预警" />
         </el-tab-pane>
-        <!-- 电子界桩预警（预留） -->
         <el-tab-pane label="电子界桩预警" name="piles">
           <el-empty description="暂无界桩预警数据" />
         </el-tab-pane>
