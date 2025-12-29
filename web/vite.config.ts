@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:5174';
   return {
+  publicDir: fileURLToPath(new URL('../original/echart', import.meta.url)),
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -29,6 +30,10 @@ export default defineConfig(({ mode }) => {
   ],
   server: {
     port: 5173,
+    fs: {
+      // 允许访问上级 original/echart 素材目录（开发环境）
+      allow: [fileURLToPath(new URL('..', import.meta.url))]
+    },
     proxy: {
       // 登录等 sys 接口需要去掉 /api 前缀
       '/api/sys': {

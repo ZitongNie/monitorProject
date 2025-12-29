@@ -3,184 +3,214 @@
   功能：展示系统总体概览(测站/界桩数量与预警统计)和快速入口导航
 -->
 <template>
-  <div v-loading="loading" class="dashboard-root">
-    <el-row :gutter="12">
-      <!-- 左侧：白蚁测站概览 -->
-      <el-col :span="6">
-        <el-card ref="leftOverviewCard" shadow="never" body-style="padding:12px 12px 8px 12px">
-          <template #header>
-            <span style="font-weight:600;color:#303133;">白蚁测站总览</span>
-          </template>
+  <div v-loading="loading" class="dashboard-root" ref="dashboardRoot">
+    <!-- 头部：完全复刻 original/echart header 样式，只调整文案 -->
+    <header class="screen-header">
+      <h1>电子界桩与白蚁监测管理</h1>
+      <div class="header-actions">
+        <el-button size="small" type="primary" plain @click="toggleFullscreen">
+          {{ isFullscreen ? '退出全屏' : '全屏' }}
+        </el-button>
+      </div>
+      <div class="showTime">{{ nowTime }}</div>
+    </header>
+
+    <!-- 主体：使用 mainbox / column / panel 结构承载现有功能 -->
+    <section class="mainbox">
+      <!-- 左列：白蚁测站总览 -->
+      <div class="column">
+        <div class="panel">
+          <h2>白蚁测站总览</h2>
 
           <!-- 统计卡片 -->
-          <el-row :gutter="12" style="margin-bottom:12px">
-            <el-col :span="12">
-              <el-card shadow="hover">
-                <el-statistic title="测站总数" :value="stats.stationTotal">
-                  <template #suffix>
-                    <el-icon color="#409eff"><Odometer /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-            <el-col :span="12">
-              <el-card shadow="hover">
-                <el-statistic title="有白蚁" :value="stats.stationWithTermites">
-                  <template #suffix>
-                    <el-icon color="#f56c6c"><Warning /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-            <el-col :span="12" style="margin-top:12px">
-              <el-card shadow="hover">
-                <el-statistic title="无白蚁" :value="stats.stationNoTermites">
-                  <template #suffix>
-                    <el-icon color="#67c23a"><CircleCheck /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-            <el-col :span="12" style="margin-top:12px">
-              <el-card shadow="hover">
-                <el-statistic title="无数据" :value="stats.stationNoData">
-                  <template #suffix>
-                    <el-icon color="#909399"><QuestionFilled /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-          </el-row>
+          <div class="panel-inner">
+            <el-row :gutter="12" style="margin-bottom:12px">
+              <el-col :span="12">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="测站总数" :value="stats.stationTotal">
+                    <template #suffix>
+                      <el-icon color="#409eff"><Odometer /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+              <el-col :span="12">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="有白蚁" :value="stats.stationWithTermites">
+                    <template #suffix>
+                      <el-icon color="#f56c6c"><Warning /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+              <el-col :span="12" style="margin-top:12px">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="无白蚁" :value="stats.stationNoTermites">
+                    <template #suffix>
+                      <el-icon color="#67c23a"><CircleCheck /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+              <el-col :span="12" style="margin-top:12px">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="无数据" :value="stats.stationNoData">
+                    <template #suffix>
+                      <el-icon color="#909399"><QuestionFilled /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+            </el-row>
+          </div>
+
           <!-- 状态分布饼图 -->
-          <el-card shadow="never" body-style="padding:8px 8px 0 8px;">
-            <template #header>
-              <span>状态分布</span>
-            </template>
-            <v-chart :option="termitePieOptions" autoresize style="height:220px;width:100%" />
-          </el-card>
+          <div class="panel chart-panel">
+            <h2>状态分布</h2>
+            <div class="chart">
+              <v-chart :option="termitePieOptions" autoresize />
+            </div>
+            <div class="panel-footer"></div>
+          </div>
 
-          <!-- 白蚁测站预警：并入左侧总览，放在饼图下方 -->
-          <el-card shadow="never" body-style="padding:8px;" style="margin-top:12px;">
-            <template #header>
-              <span>最新预警</span>
-            </template>
-            <el-table :data="stationAlerts" size="small" height="360" border>
-              <el-table-column label="预警信息">
-                <template #default="{ row }">
-                  <div class="alert-item">
-                    <div class="alert-line1">
-                      <span class="alert-name">{{ row.name }}</span>
-                      <el-tag v-if="row.handleStatus === 0" size="small" type="danger">未处理</el-tag>
-                      <el-tag v-else size="small" type="success">已处理</el-tag>
-                    </div>
-                    <div class="alert-line2">
-                      <span class="muted">编号：{{ row.stationCode }}</span>
-                      <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
-                    </div>
-                    <div class="alert-line3">
-                      <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
-                    </div>
-                    <div class="alert-actions">
-                      <el-space>
-                        <el-button type="primary" plain size="small" @click="viewStationDetail(row.stationId)">查看详情</el-button>
-                        <el-button v-if="row.handleStatus === 0" type="success" plain size="small" @click="handleAlert(row)">已处理</el-button>
-                      </el-space>
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-empty v-if="!stationAlerts.length" description="暂无预警" />
-          </el-card>
+          <!-- 白蚁测站预警：使用原样式包裹表格 -->
+          <div class="panel table-panel">
+            <h2>最新预警</h2>
+            <div class="chart">
+              <template v-if="stationAlerts.length">
+                <el-table :data="stationAlerts" size="small" height="240" border>
+                  <el-table-column label="预警信息">
+                    <template #default="{ row }">
+                      <div class="alert-item">
+                        <div class="alert-line1">
+                          <span class="alert-name">{{ row.name }}</span>
+                          <el-tag v-if="row.handleStatus === 0" size="small" type="danger" effect="plain">未处理</el-tag>
+                          <el-tag v-else size="small" type="success" effect="plain">已处理</el-tag>
+                        </div>
+                        <div class="alert-line2">
+                          <span class="muted">编号：{{ row.stationCode }}</span>
+                          <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
+                        </div>
+                        <div class="alert-line3">
+                          <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
+                        </div>
+                        <div class="alert-actions">
+                          <el-space>
+                            <el-button type="primary" plain size="small" @click="viewStationDetail(row.stationId)">查看详情</el-button>
+                            <el-button v-if="row.handleStatus === 0" type="success" plain size="small" @click="handleAlert(row)">已处理</el-button>
+                          </el-space>
+                        </div>
+                      </div>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </template>
+              <el-empty v-else description="暂无预警" />
+            </div>
+            <div class="panel-footer"></div>
+          </div>
 
-        </el-card>
-      </el-col>
+          <div class="panel-footer"></div>
+        </div>
+      </div>
 
-      <!-- 中间：地图总览 -->
-      <el-col :span="12">
-        <el-card shadow="never" :body-style="{ padding: '0', height: mapBodyHeight + 'px', overflow: 'hidden' }">
-          <template #header>
-            <span style="font-weight:600;color:#303133;">测站分布地图</span>
-          </template>
-          <div id="overview-map" ref="overviewMapEl" style="width:100%;height:100%;"></div>
-        </el-card>
-      </el-col>
+      <!-- 中列：总量数字 + 地图占位（地图内容留空） -->
+      <div class="column">
+        <div class="no">
+          <div class="no-hd">
+            <ul>
+              <li>{{ stats.stationTotal }}</li>
+              <li>0</li>
+            </ul>
+          </div>
+          <div class="no-bd">
+            <ul>
+              <li>白蚁测站总数</li>
+              <li>电子界桩总数</li>
+            </ul>
+          </div>
+        </div>
+        <div class="map">
+          <!-- 地图区域留空，仅保留背景装饰 -->
+          <div class="map1"></div>
+          <div class="map2"></div>
+          <div class="map3"></div>
+        </div>
+      </div>
 
-      <!-- 右侧：电子界桩概览（占位，同风格） -->
-      <el-col :span="6">
-        <el-card ref="rightOverviewCard" shadow="never" body-style="padding:12px 12px 8px 12px">
-          <template #header>
-            <span style="font-weight:600;color:#303133;">电子界桩总览</span>
-          </template>
-
-          <!-- 统计卡片占位 -->
-          <el-row :gutter="12" style="margin-bottom:12px">
-            <el-col :span="12">
-              <el-card shadow="hover">
-                <el-statistic title="测试" :value="0">
-                  <template #suffix>
-                    <el-icon color="#909399"><Odometer /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-            <el-col :span="12">
-              <el-card shadow="hover">
-                <el-statistic title="测试" :value="0">
-                  <template #suffix>
-                    <el-icon color="#909399"><Warning /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-            <el-col :span="12" style="margin-top:12px">
-              <el-card shadow="hover">
-                <el-statistic title="测试" :value="0">
-                  <template #suffix>
-                    <el-icon color="#909399"><CircleCheck /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-            <el-col :span="12" style="margin-top:12px">
-              <el-card shadow="hover">
-                <el-statistic title="测试" :value="0">
-                  <template #suffix>
-                    <el-icon color="#909399"><QuestionFilled /></el-icon>
-                  </template>
-                </el-statistic>
-              </el-card>
-            </el-col>
-          </el-row>
-
-          <!-- 饼状图占位：与测站同样结构（目前为占位统计） -->
-          <v-chart :option="pilePieOption" style="height: 240px" autoresize />
-
-          <!-- 预警占位已移除 -->
+      <!-- 右列：电子界桩总览（结构与 original 右侧列一致） -->
+      <div class="column">
+        <div class="panel">
+          <h2>电子界桩总览</h2>
+          <div class="panel-inner">
+            <!-- 统计卡片占位 -->
+            <el-row :gutter="12" style="margin-bottom:12px">
+              <el-col :span="12">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="测试" :value="0">
+                    <template #suffix>
+                      <el-icon color="#909399"><Odometer /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+              <el-col :span="12">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="测试" :value="0">
+                    <template #suffix>
+                      <el-icon color="#909399"><Warning /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+              <el-col :span="12" style="margin-top:12px">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="测试" :value="0">
+                    <template #suffix>
+                      <el-icon color="#909399"><CircleCheck /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+              <el-col :span="12" style="margin-top:12px">
+                <el-card shadow="hover" class="stat-card">
+                  <el-statistic title="测试" :value="0">
+                    <template #suffix>
+                      <el-icon color="#909399"><QuestionFilled /></el-icon>
+                    </template>
+                  </el-statistic>
+                </el-card>
+              </el-col>
+            </el-row>
+          </div>
 
           <!-- 电子界桩饼图（测试） -->
-          <el-card shadow="never" body-style="padding:8px 8px 0 8px;">
-            <template #header>
-              <span>测试</span>
-            </template>
-            <v-chart :option="pilePieOptions" autoresize style="height:220px;width:100%" />
-          </el-card>
+          <div class="panel chart-panel">
+            <h2>测试</h2>
+            <div class="chart">
+              <v-chart :option="pilePieOptions" autoresize />
+            </div>
+            <div class="panel-footer"></div>
+          </div>
 
-          <!-- 电子界桩预警：并入右侧总览，放在饼图下方 -->
-          <el-card shadow="never" body-style="padding:8px;" style="margin-top:12px;">
-            <template #header>
-              <span>电子界桩预警</span>
-            </template>
-            <el-empty description="暂无界桩预警数据" />
-          </el-card>
-        </el-card>
-      </el-col>
-    </el-row>
+          <!-- 电子界桩预警 -->
+          <div class="panel table-panel">
+            <h2>电子界桩预警</h2>
+            <div class="chart">
+              <el-empty description="暂无界桩预警数据" />
+            </div>
+            <div class="panel-footer"></div>
+          </div>
+
+          <div class="panel-footer"></div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, reactive, computed } from 'vue';
+import { onMounted, onBeforeUnmount, ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
 import { listTermiteStations } from '@/services/termiteStations';
@@ -195,13 +225,12 @@ use([CanvasRenderer, PieChart, LegendComponent, TooltipComponent]);
 
 const router = useRouter();
 const loading = ref(false);
-// 底部预警模块已并入左右总览，不再需要 tabs
-const overviewMapEl = ref<HTMLDivElement | null>(null);
-const leftOverviewCard = ref<any>(null);
-const rightOverviewCard = ref<any>(null);
-const mapBodyHeight = ref(420);
-let overviewMap: any = null;
-let mapvglView: any = null;
+// 头部时间显示
+const nowTime = ref('');
+// 全屏状态
+const isFullscreen = ref(false);
+// 大屏容器引用
+const dashboardRoot = ref<HTMLElement | null>(null);
 
 // 统计数据
 const stats = reactive({
@@ -210,26 +239,6 @@ const stats = reactive({
   stationNoTermites: 0,
   stationNoData: 0
 });
-// 饼图配置 - 电子界桩（占位）
-const pilePieOption = computed(() => ({
-  title: { text: '界桩状态分布', left: 'center' },
-  tooltip: { trigger: 'item' },
-  legend: { bottom: 0 },
-  series: [
-    {
-      name: '界桩状态',
-      type: 'pie',
-      radius: '60%',
-      data: [
-        { value: 0, name: '异常' },
-        { value: 0, name: '正常' },
-        { value: 0, name: '无数据' }
-      ],
-      emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.3)' } }
-    }
-  ]
-}));
-
 interface StationAlert {
   stationId: number;
   stationCode: string;
@@ -245,7 +254,11 @@ const stationAlerts = ref<StationAlert[]>([]);
 // 饼图配置
 const termitePieOptions = computed(() => ({
   tooltip: { trigger: 'item' },
-  legend: { bottom: 0 },
+  legend: {
+    bottom: 0,
+    textStyle: { color: '#e8f5ff', fontSize: 12 }
+  },
+  textStyle: { color: '#e8f5ff' },
   color: ['#f09d5b', '#86ce9e', '#909399'],
   series: [
     {
@@ -253,8 +266,8 @@ const termitePieOptions = computed(() => ({
       type: 'pie',
       radius: ['40%', '70%'],
       avoidLabelOverlap: false,
-      label: { show: false, position: 'center' },
-      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+      label: { show: false, position: 'center', color: '#e8f5ff' },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#ffffff' } },
       labelLine: { show: false },
       data: [
         { value: stats.stationWithTermites, name: '有白蚁' },
@@ -267,15 +280,19 @@ const termitePieOptions = computed(() => ({
 
 const pilePieOptions = computed(() => ({
   tooltip: { trigger: 'item' },
-  legend: { bottom: 0 },
+  legend: {
+    bottom: 0,
+    textStyle: { color: '#e8f5ff', fontSize: 12 }
+  },
+  textStyle: { color: '#e8f5ff' },
   series: [
     {
       name: '测试',
       type: 'pie',
       radius: ['40%', '70%'],
       avoidLabelOverlap: false,
-      label: { show: false, position: 'center' },
-      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+      label: { show: false, position: 'center', color: '#e8f5ff' },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#ffffff' } },
       labelLine: { show: false },
       data: [
         { value: 40, name: '测试A' },
@@ -303,161 +320,6 @@ function formatDateTime(isoString?: string): string {
   } catch {
     return isoString;
   }
-}
-
-// 加载外部脚本
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load ' + src));
-    document.body.appendChild(s);
-  });
-}
-
-async function loadMapLibs() {
-  // BMapGL
-  if (!(window as any).BMapGL) {
-    await loadScript('//api.map.baidu.com/api?v=1.0&type=webgl&ak=7j9Zg3mGoFudBiK624Yw8TzPCdiqbNB5');
-  }
-  // mapvgl
-  if (!(window as any).mapvgl) {
-    await loadScript('https://code.bdstatic.com/npm/mapvgl@1.0.0-beta.189/dist/mapvgl.min.js');
-  }
-}
-
-async function initOverviewMap() {
-  try {
-    await loadMapLibs();
-    const BMapGL = (window as any).BMapGL;
-    const mapvgl = (window as any).mapvgl;
-    if (!overviewMapEl.value) return;
-
-    overviewMap = new BMapGL.Map(overviewMapEl.value);
-    overviewMap.enableScrollWheelZoom(true);
-    overviewMap.setTilt(10);
-    overviewMap.setZoom(10);
-    overviewMap.setCenter(new BMapGL.Point(112.9388, 28.2282)); // 默认中心：长沙
-
-    // 白底增强样式：显著保留水系(河流/湖泊)与主要道路、行政区文本，隐藏POI/楼块
-    const WHITE_WATER_ENHANCED = [
-      // 地表与绿地
-      { featureType: 'land', elementType: 'geometry', stylers: { color: '#f5f7faff' } },
-      { featureType: 'green', elementType: 'geometry', stylers: { color: '#eaf4ecff' } },
-      // 水系：提高对比度，并开启文本
-      { featureType: 'water', elementType: 'geometry', stylers: { color: '#9cc9ffff' } },
-      { featureType: 'water', elementType: 'labels.text.fill', stylers: { color: '#6c8fbaff', visibility: 'on' } },
-      // 行政区与边界
-      { featureType: 'boundary', elementType: 'geometry', stylers: { color: '#cfd7e3ff' } },
-      { featureType: 'districtlabel', elementType: 'labels.text.fill', stylers: { color: '#6e7787ff' } },
-      // 道路主干次干
-      { featureType: 'highway', elementType: 'geometry', stylers: { color: '#e7ecf0ff' } },
-      { featureType: 'arterial', elementType: 'geometry', stylers: { color: '#eef3f7ff' } },
-      { featureType: 'local', elementType: 'geometry', stylers: { color: '#f6f8fbff' } },
-      { featureType: 'road', elementType: 'labels.text.fill', stylers: { color: '#98a3b3ff' } },
-      // 隐藏干扰项
-      { featureType: 'poilabel', elementType: 'all', stylers: { visibility: 'off' } },
-      { featureType: 'building', elementType: 'all', stylers: { visibility: 'off' } },
-      { featureType: 'manmade', elementType: 'all', stylers: { visibility: 'off' } }
-    ];
-    try {
-      overviewMap.setMapStyleV2({ styleJson: WHITE_WATER_ENHANCED });
-      // 天空渐变，与示例风格一致
-      if (typeof (overviewMap as any).setSkyColors === 'function') {
-        (overviewMap as any).setSkyColors([
-          'rgba(226, 237, 248, 0)',
-          'rgba(186, 211, 252, 1)'
-        ]);
-      }
-    } catch {}
-
-    // 加载测站并适配视野
-    const page = await listTermiteStations({ pageNo: 1, pageSize: 200 });
-    const points = page.records
-      .filter(s => s.lngBd09 != null && s.latBd09 != null)
-      .map(s => new BMapGL.Point(s.lngBd09!, s.latBd09!));
-    if (points.length) {
-      const view = overviewMap.getViewport(points);
-      overviewMap.centerAndZoom(view.center, view.zoom);
-    }
-
-    // 准备聚合数据
-    const data = page.records
-      .filter(s => s.lngBd09 != null && s.latBd09 != null)
-      .map(s => ({
-        geometry: { type: 'Point', coordinates: [s.lngBd09 as number, s.latBd09 as number] },
-        properties: { id: s.id, name: s.name }
-      }));
-
-    // 创建视图与聚合图层
-    mapvglView = new mapvgl.View({ map: overviewMap });
-
-    // 柱状层（用于低级别时的聚合效果展示）
-    const barLayer = new mapvgl.BarLayer({
-      height: 1000 * 800, // 柱体基准高度
-      size: 20 * 1000,    // 柱体直径
-      edgeCount: 30
-    });
-    mapvglView.addLayer(barLayer);
-
-    // 聚合层，联动柱状层（参考示例）
-    const clusterLayer = new mapvgl.ClusterLayer({
-      minSize: 30,
-      maxSize: 50,
-      clusterRadius: 150,
-      gradient: { 0: 'blue', 0.5: 'green', 1.0: 'red' },
-      maxZoom: 15,
-      minZoom: 5,
-      showText: true,
-      minPoints: 5,
-      textOptions: {
-        fontSize: 12,
-        color: 'white',
-        format: function (count: number) {
-          return count >= 10000 ? Math.round(count / 1000) + 'k'
-            : count >= 1000 ? Math.round(count / 100) / 10 + 'k' : count;
-        }
-      },
-      beforeRender: (clusterData: any[]) => {
-        if (overviewMap.getZoom() > 8) {
-          barLayer.setData([]);
-          return true; // 使用默认聚合渲染
-        }
-        const bars: any[] = [];
-        clusterData.forEach((item: any) => {
-          bars.push({
-            geometry: item.geometry,
-            height: (item.properties.point_count || 1) * 100, // 与示例一致的倍率
-            color: item.properties.color
-          });
-        });
-        barLayer.setData(bars);
-        return false; // 阻止默认渲染，仅显示柱状
-      }
-    });
-    mapvglView.addLayer(clusterLayer);
-    clusterLayer.setData(data);
-    // 地图就绪后同步一次高度
-    syncMapHeight();
-  } catch (e) {
-    // 地图失败静默，不阻断概览
-    console.warn('[Dashboard] 地图初始化失败:', e);
-  }
-}
-
-function getElHeight(r: any): number {
-  if (!r) return 0;
-  const el = (r as any).$el ? (r as any).$el : r;
-  return el && el.offsetHeight ? el.offsetHeight : 0;
-}
-
-function syncMapHeight() {
-  const lh = getElHeight(leftOverviewCard.value);
-  const rh = getElHeight(rightOverviewCard.value);
-  const h = Math.max(lh, rh);
-  // 预留卡片头部高度 ~ 48px
-  mapBodyHeight.value = Math.max(420, h - 48);
 }
 
 function viewStationDetail(id: number) {
@@ -518,20 +380,350 @@ async function loadAlerts() {
   }
 }
 
+function handleFullscreenChange() {
+  const doc: any = document;
+  const fsEl = doc.fullscreenElement || doc.webkitFullscreenElement;
+  isFullscreen.value = !!(fsEl && dashboardRoot.value && fsEl === dashboardRoot.value);
+}
+
+function toggleFullscreen() {
+  const doc: any = document;
+  const el: any = dashboardRoot.value;
+
+  if (!el) return;
+
+  if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (request) {
+      request.call(el);
+    }
+  } else {
+    const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+    if (exit) {
+      exit.call(doc);
+    }
+  }
+}
+
 onMounted(() => {
   loadAlerts();
-  initOverviewMap();
-  // 初始与窗口变化时同步高度
-  setTimeout(syncMapHeight, 0);
-  window.addEventListener('resize', syncMapHeight);
+  const updateTime = () => {
+    const dt = new Date();
+    const y = dt.getFullYear();
+    const mt = dt.getMonth() + 1;
+    const day = dt.getDate();
+    const h = dt.getHours();
+    const m = dt.getMinutes();
+    const s = dt.getSeconds();
+    nowTime.value = `当前时间：${y}年${mt}月${day}-${h}时${m}分${s}秒`;
+  };
+  updateTime();
+  timeTimer = window.setInterval(updateTime, 1000);
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+});
+
+let timeTimer: number | undefined;
+
+onBeforeUnmount(() => {
+  if (timeTimer) {
+    clearInterval(timeTimer);
+  }
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
 });
 </script>
 
 <style scoped>
-.dashboard-root {
-  padding: 12px;
+.dashboard-root :global(*) {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
-  background-color: #ffffff;
+}
+
+.dashboard-root :global(li) {
+  list-style: none;
+}
+
+@font-face {
+  font-family: electronicFont;
+  src: url('/font/DS-DIGIT.TTF');
+}
+
+.dashboard-root {
+  padding: 8px 8px 0;
+  box-sizing: border-box;
+  min-height: 100vh;
+  overflow: hidden;
+  background: url('/images/bg.jpg') no-repeat #000;
+  background-size: cover;
+  line-height: 1.15;
+  color: #e8f5ff;
+}
+
+/* 复刻 original/echart header，但用 px 调整在 PC 下更合适 */
+.screen-header {
+  position: relative;
+  height: 72px;
+  background: url('/images/head_bg.png') no-repeat top center;
+  background-size: 100% 100%;
+}
+
+.screen-header h1 {
+  font-size: 24px;
+  color: #fff;
+  text-align: center;
+  line-height: 60px;
+}
+
+.showTime {
+  position: absolute;
+  top: 0;
+  right: 24px;
+  line-height: 60px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.header-actions {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  transform: translateY(-50%);
+}
+
+.header-actions :deep(.el-button) {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+
+/* 三列主区域：左右略窄，中间略宽 */
+.mainbox {
+  width: 100%;
+  max-width: 1920px;
+  margin: 12px auto;
+  display: flex;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.mainbox .column {
+  flex: 1;
+  min-width: 0;
+}
+
+.mainbox .column:nth-child(2) {
+  flex: 1.2;
+}
+
+.panel {
+  position: relative;
+  border: 1px solid rgba(25, 186, 139, 0.17);
+  background: rgba(255, 255, 255, 0.04) url('/images/line(1).png');
+  padding: 0 10px 14px;
+  margin-bottom: 6px;
+}
+
+.panel::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid #02a6b5;
+  border-left: 2px solid #02a6b5;
+}
+
+.panel::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid #02a6b5;
+  border-right: 2px solid #02a6b5;
+}
+
+.panel .panel-footer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+}
+
+.panel .panel-footer::before {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid #02a6b5;
+  border-left: 2px solid #02a6b5;
+}
+
+.panel .panel-footer::after {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid #02a6b5;
+  border-right: 2px solid #02a6b5;
+}
+
+.panel h2 {
+  height: 36px;
+  line-height: 36px;
+  text-align: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.panel .chart {
+  height: 240px;
+}
+
+.panel-inner {
+  padding-top: 8px;
+}
+
+/* 统计卡片：弱化白色边框，改为青色霓虹块，更贴合大屏风格 */
+.stat-card {
+  background: radial-gradient(circle at top left, rgba(25, 186, 139, 0.18), transparent 60%),
+    rgba(5, 25, 55, 0.9);
+  border-color: rgba(25, 186, 139, 0.6);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.12) inset;
+}
+
+/* 中列数字大屏与地图装饰：等比例缩小，仍保证可见 */
+.no {
+  background: rgba(101, 132, 226, 0.1);
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.no .no-hd {
+  position: relative;
+  border: 1px solid rgba(25, 186, 139, 0.17);
+}
+
+.no .no-hd::before {
+  content: "";
+  position: absolute;
+  width: 30px;
+  height: 10px;
+  border-top: 2px solid #02a6b5;
+  border-left: 2px solid #02a6b5;
+  top: 0;
+  left: 0;
+}
+
+.no .no-hd::after {
+  content: "";
+  position: absolute;
+  width: 30px;
+  height: 10px;
+  border-bottom: 2px solid #02a6b5;
+  border-right: 2px solid #02a6b5;
+  right: 0;
+  bottom: 0;
+}
+
+.no .no-hd ul {
+  display: flex;
+}
+
+.no .no-hd ul li {
+  position: relative;
+  flex: 1;
+  text-align: center;
+  height: 64px;
+  line-height: 64px;
+  font-size: 34px;
+  color: #ffeb7b;
+  padding: 4px 0;
+  font-family: electronicFont, Arial, sans-serif;
+  font-weight: bold;
+}
+
+.no .no-hd ul li:first-child::after {
+  content: "";
+  position: absolute;
+  height: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  right: 0;
+  top: 25%;
+}
+
+.no .no-bd ul {
+  display: flex;
+}
+
+.no .no-bd ul li {
+  flex: 1;
+  height: 26px;
+  line-height: 26px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(245, 250, 255, 0.9);
+  padding-top: 4px;
+}
+
+.map {
+  position: relative;
+  height: 340px;
+}
+
+.map .map1,
+.map .map2,
+.map .map3 {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 260px;
+  height: 260px;
+  background: url('/images/map.png') no-repeat;
+  background-size: 100% 100%;
+  opacity: 0.3;
+}
+
+.map .map2 {
+  width: 320px;
+  height: 320px;
+  background-image: url('/images/lbx.png');
+  opacity: 0.6;
+  animation: rotate 15s linear infinite;
+  z-index: 2;
+}
+
+.map .map3 {
+  width: 280px;
+  height: 280px;
+  background-image: url('/images/jt.png');
+  animation: rotate1 10s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes rotate1 {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(-360deg);
+  }
 }
 .alert-item {
   display: flex;
@@ -545,18 +737,18 @@ onMounted(() => {
 }
 .alert-name {
   font-weight: 600;
-  color: #303133;
+  color: #fefefe;
 }
 .alert-line2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: #909399;
+  color: rgba(200, 220, 255, 0.7);
 }
 .alert-line3 {
   font-size: 12px;
-  color: #909399;
+  color: rgba(200, 220, 255, 0.7);
 }
 .alert-desc {
   word-break: break-word;
@@ -565,5 +757,62 @@ onMounted(() => {
 .alert-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+:deep(.el-card) {
+  background-color: transparent;
+}
+
+:deep(.el-card__header) {
+  border-bottom-color: rgba(25, 186, 139, 0.35);
+}
+
+:deep(.el-statistic__head),
+:deep(.el-statistic__title),
+:deep(.el-statistic__content),
+:deep(.el-statistic__number) {
+  color: #ffffff !important;
+}
+
+:deep(.el-table) {
+  background-color: transparent;
+  color: #e8f5ff;
+}
+
+:deep(.el-table tr) {
+  background-color: transparent;
+}
+
+:deep(.el-table th),
+:deep(.el-table td) {
+  background-color: rgba(9, 32, 63, 0.95);
+  border-color: rgba(25, 186, 139, 0.25);
+}
+
+:deep(.el-table__header-wrapper th) {
+  background: linear-gradient(to right, rgba(0, 242, 255, 0.35), rgba(0, 255, 157, 0.15));
+  color: #f6fbff;
+}
+
+:deep(.el-table__empty-block) {
+  background-color: transparent;
+}
+
+:deep(.el-empty__description) {
+  color: rgba(220, 234, 255, 0.75);
+}
+
+:deep(.el-tag--danger.is-plain) {
+  background-color: rgba(245, 108, 108, 0.1);
+  border-color: rgba(245, 108, 108, 0.7);
+}
+
+:deep(.el-tag--success.is-plain) {
+  background-color: rgba(103, 194, 58, 0.1);
+  border-color: rgba(103, 194, 58, 0.7);
+}
+
+:deep(.el-button.is-plain) {
+  border-color: rgba(0, 242, 255, 0.6);
 }
 </style>
