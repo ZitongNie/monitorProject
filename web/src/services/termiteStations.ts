@@ -94,6 +94,7 @@ export interface TermiteRealtimeRequest {
   id?: number;
   rtuid?: string;
   reservoirCode?: string;
+  stationCode?: string;
   includeImages?: boolean;
   includeAlerts?: boolean;
   imageLimit?: number;
@@ -379,5 +380,9 @@ export async function queryTermiteRealtime(body: TermiteRealtimeRequest): Promis
       images
     };
   }
-  return await request<TermiteRealtimeResponse>(api.post('/termite-stations/realtime:query', body));
+  // 按接口文档：POST /api/termite-stations/realtime-db，仅查数据库
+  // 由后端按优先级 id > reservoirCode > rtuid > stationCode 解析唯一键
+  return await request<TermiteRealtimeResponse>(
+    api.post('/termite-stations/realtime-db', body)
+  );
 }

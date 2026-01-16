@@ -214,6 +214,8 @@ import { onMounted, onBeforeUnmount, ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
 import { listTermiteStations } from '@/services/termiteStations';
+import { listElectronicBoundaries } from '@/services/electronicBoundaries';
+import { updateAlertStatus } from '@/services/alerts';
 import { use } from 'echarts/core';
 import VChart from 'vue-echarts';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -237,7 +239,11 @@ const stats = reactive({
   stationTotal: 0,
   stationWithTermites: 0,
   stationNoTermites: 0,
-  stationNoData: 0
+  stationNoData: 0,
+  // 电子界桩统计
+  boundaryTotal: 0,
+  boundaryOnline: 0,
+  boundaryOffline: 0
 });
 interface StationAlert {
   stationId: number;
@@ -287,7 +293,7 @@ const pilePieOptions = computed(() => ({
   textStyle: { color: '#e8f5ff' },
   series: [
     {
-      name: '测试',
+      name: '电子界桩状态',
       type: 'pie',
       radius: ['40%', '70%'],
       avoidLabelOverlap: false,
@@ -295,9 +301,8 @@ const pilePieOptions = computed(() => ({
       emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#ffffff' } },
       labelLine: { show: false },
       data: [
-        { value: 40, name: '测试A' },
-        { value: 35, name: '测试B' },
-        { value: 25, name: '测试C' }
+        { value: stats.boundaryOnline, name: '在线' },
+        { value: stats.boundaryOffline, name: '离线' }
       ]
     }
   ]
@@ -338,8 +343,13 @@ async function handleAlert(alert: StationAlert) {
       }
     );
     
-    // TODO: 调用后端接口标记预警为已处理
-    // await handleTermiteAlert(alert.alertId, { handleStatus: 1, handler: 'admin' });
+    // 调用后端接口标记预警为已处理
+    try {
+      await updateAlertStatus(alert.alertId, { handled: true, handler: 'admin' });
+    } catch (e: any) {
+      ElMessage.error(e.message || '更新预警状态失败');
+      return;
+    }
     
     // 从列表中移除该预警
     const index = stationAlerts.value.findIndex(a => a.alertId === alert.alertId);
@@ -380,6 +390,18 @@ async function loadAlerts() {
   }
 }
 
+async function loadBoundaryStats() {
+  try {
+    const page = await listElectronicBoundaries({ pageNum: 1, pageSize: 500 });
+    const list = page.list;
+    stats.boundaryTotal = page.total;
+    stats.boundaryOnline = list.filter(b => b.status === 1).length;
+    stats.boundaryOffline = list.filter(b => b.status === 0).length;
+  } catch (e: any) {
+    ElMessage.error(e.message || '加载电子界桩统计失败');
+  }
+}
+
 function handleFullscreenChange() {
   const doc: any = document;
   const fsEl = doc.fullscreenElement || doc.webkitFullscreenElement;
@@ -407,6 +429,7 @@ function toggleFullscreen() {
 
 onMounted(() => {
   loadAlerts();
+  loadBoundaryStats();
   const updateTime = () => {
     const dt = new Date();
     const y = dt.getFullYear();

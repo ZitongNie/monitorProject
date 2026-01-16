@@ -22,32 +22,7 @@
     </template>
 
     <div v-if="detail" class="detail-content">
-      <el-descriptions title="基础信息" :column="3" border>
-        <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
-        <el-descriptions-item label="监测站编号">{{ detail.stationCode }}</el-descriptions-item>
-        <el-descriptions-item label="名称">{{ detail.name }}</el-descriptions-item>
-        <el-descriptions-item label="RTUID">{{ detail.rtuid }}</el-descriptions-item>
-        <el-descriptions-item label="水库编码">{{ detail.reservoirCode }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="detail.status===1? 'success':'info'" effect="dark">{{ detail.status===1? '在线':'离线' }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="联系人">{{ detail.contactPerson || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="联系电话">{{ detail.contactPhone || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="地址" :span="3">{{ detail.address || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
-      </el-descriptions>
-
-      <el-descriptions title="当前坐标 (WGS84)" :column="2" border class="mt16">
-        <el-descriptions-item label="经度">{{ detail.lngWgs84 }}</el-descriptions-item>
-        <el-descriptions-item label="纬度">{{ detail.latWgs84 }}</el-descriptions-item>
-      </el-descriptions>
-      <el-descriptions title="初始安装坐标 (WGS84)" :column="2" border class="mt16">
-        <el-descriptions-item label="经度">{{ detail.initLngWgs84 }}</el-descriptions-item>
-        <el-descriptions-item label="纬度">{{ detail.initLatWgs84 }}</el-descriptions-item>
-      </el-descriptions>
-
-      <!-- 实时数据 -->
+      <!-- 实时数据（放在最前，作为核心信息） -->
       <div class="mt24">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <h3 style="margin:0">实时数据</h3>
@@ -90,6 +65,21 @@
         </el-row>
       </div>
 
+      <!-- 安全/预警状态变化曲线 -->
+      <div class="mt24">
+        <h3 style="margin:0">安全/预警状态变化曲线</h3>
+        <el-empty
+          v-if="!alertCurveOption.series || !alertCurveOption.series.length"
+          description="暂无统计数据"
+        />
+        <v-chart
+          v-else
+          :option="alertCurveOption"
+          style="height:260px;margin-top:12px;"
+          autoresize
+        />
+      </div>
+
       <!-- 图片 -->
       <div class="mt24">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -126,6 +116,35 @@
             </el-card>
           </el-upload>
         </el-space>
+      </div>
+
+      <!-- 基础信息（移动到最下方） -->
+      <div class="mt24">
+        <h3 style="margin:0 0 8px;">基础信息</h3>
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
+          <el-descriptions-item label="监测站编号">{{ detail.stationCode }}</el-descriptions-item>
+          <el-descriptions-item label="名称">{{ detail.name }}</el-descriptions-item>
+          <el-descriptions-item label="RTUID">{{ detail.rtuid }}</el-descriptions-item>
+          <el-descriptions-item label="水库编码">{{ detail.reservoirCode }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="detail.status===1? 'success':'info'" effect="dark">{{ detail.status===1? '在线':'离线' }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="联系人">{{ detail.contactPerson || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ detail.contactPhone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="地址" :span="3">{{ detail.address || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-descriptions title="当前坐标 (WGS84)" :column="2" border class="mt16">
+          <el-descriptions-item label="经度">{{ detail.lngWgs84 }}</el-descriptions-item>
+          <el-descriptions-item label="纬度">{{ detail.latWgs84 }}</el-descriptions-item>
+        </el-descriptions>
+        <el-descriptions title="初始安装坐标 (WGS84)" :column="2" border class="mt16">
+          <el-descriptions-item label="经度">{{ detail.initLngWgs84 }}</el-descriptions-item>
+          <el-descriptions-item label="纬度">{{ detail.initLatWgs84 }}</el-descriptions-item>
+        </el-descriptions>
       </div>
     </div>
 
@@ -230,6 +249,14 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Close, Plus } from '@element-plus/icons-vue';
 import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, listTermiteStations, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
 import type { FormInstance, FormRules } from 'element-plus';
+import { fetchTermiteAlertCurve, type TermiteAlertCurveResponse } from '@/services/termiteMonitor';
+import { use } from 'echarts/core';
+import VChart from 'vue-echarts';
+import { CanvasRenderer } from 'echarts/renderers';
+import { LineChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components';
+
+use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent]);
 
 const router = useRouter();
 const route = useRoute();
@@ -240,6 +267,7 @@ const editForm = ref<Partial<TermiteStation>>({});
 const realtime = ref<TermiteRealtimeResponse | null>(null);
 const formRef = ref<FormInstance>();
 const saving = ref(false);
+const alertCurveOption = ref<any>({});
 
 // 格式化日期时间：将 ISO8601 转为本地可读格式
 function formatDateTime(isoString?: string): string {
@@ -390,6 +418,40 @@ async function fetchRealtime() {
   }
 }
 
+async function loadAlertCurve() {
+  if (!detail.value?.id) return;
+  try {
+    const end = new Date();
+    const start = new Date(end.getTime() - 7 * 24 * 3600_000);
+    const fmt = (d: Date) => d.toISOString().split('.')[0];
+    const data: TermiteAlertCurveResponse = await fetchTermiteAlertCurve({
+      stationId: detail.value.id,
+      startTime: fmt(start),
+      endTime: fmt(end),
+      bucket: 'day',
+      onlyAlert: 0
+    });
+    if (!data.points || !data.points.length) {
+      alertCurveOption.value = {};
+      return;
+    }
+    const x = data.points.map(p => p.bucketTime.replace('T', ' '));
+    alertCurveOption.value = {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['总次数', '安全次数', '预警次数'] },
+      xAxis: { type: 'category', data: x },
+      yAxis: { type: 'value' },
+      series: [
+        { name: '总次数', type: 'line', data: data.points.map(p => p.totalCount) },
+        { name: '安全次数', type: 'line', data: data.points.map(p => p.safeCount) },
+        { name: '预警次数', type: 'line', data: data.points.map(p => p.alertCount) }
+      ]
+    };
+  } catch (e: any) {
+    ElMessage.error(e.message || '加载状态变化曲线失败');
+  }
+}
+
 function handleUploadImage(file: File) {
   console.log('选择的文件:', file);
   ElMessage.info('图片上传功能开发中...');
@@ -419,7 +481,10 @@ async function handleDeleteImage(imageCode: string) {
 
 onMounted(async () => { 
   await loadDetail(); 
-  await fetchRealtime(); 
+  await Promise.all([
+    fetchRealtime(),
+    loadAlertCurve()
+  ]); 
 });
 </script>
 
