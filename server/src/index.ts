@@ -9,6 +9,8 @@ import { stationsRouter } from './routes/stations.ts';
 import { pilesRouter } from './routes/piles.ts';
 import { analyticsRouter } from './routes/analytics.ts';
 import { usersRouter } from './routes/users.ts';
+import boundariesRouter from './routes/electronic-boundaries.ts';
+import alertsRouter from './routes/alerts.ts';
 import { db, pushHistory } from './data/store.ts';
 
 const app = express();
@@ -26,6 +28,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/stations', maybeAuth, stationsRouter);
 app.use('/api/piles', maybeAuth, pilesRouter);
 app.use('/api/analytics', maybeAuth, analyticsRouter);
+app.use('/api/electronic-boundaries', maybeAuth, boundariesRouter);
+app.use('/api/alerts', maybeAuth, alertsRouter);
 app.use('/api/users', maybeAuth, maybeRoleAdmin, usersRouter);
 
 const server = http.createServer(app);

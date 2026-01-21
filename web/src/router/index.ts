@@ -10,6 +10,8 @@ const Piles = () => import('../pages/Piles.vue');
 const Analytics = () => import('../pages/Analytics.vue');
 const AdminUsers = () => import('../pages/AdminUsers.vue');
 const AdminAssets = () => import('../pages/AdminAssets.vue');
+const ElectronicBoundaries = () => import('../pages/ElectronicBoundaries.vue');
+const ElectronicBoundaryDetail = () => import('../pages/ElectronicBoundaryDetail.vue');
 
 const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
@@ -25,6 +27,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'map', name: 'map', component: MapView },
       { path: 'stations', name: 'stations', component: Stations },
       { path: 'station-detail', name: 'station-detail', component: StationDetail },
+      { path: 'boundaries', name: 'boundaries', component: ElectronicBoundaries },
+      { path: 'boundary-detail', name: 'boundary-detail', component: ElectronicBoundaryDetail },
       { path: 'piles', name: 'piles', component: Piles },
       { path: 'analytics', name: 'analytics', component: Analytics },
       { path: 'admin/users', name: 'admin-users', component: AdminUsers, meta: { role: 'admin' } },

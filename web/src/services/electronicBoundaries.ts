@@ -117,7 +117,8 @@ export interface PageResult<T> {
 export interface BoundaryRealtimeRequest {
   id?: number;
   deviceId?: string;
-  validKey?: boolean; // 前端忽略，仅为兼容
+  validKey?: boolean; // 对本接口无效，后端忽略
+  preferCache?: boolean; // 兼容前端调用参数，后端忽略
 }
 
 export interface BoundaryRealtimeData {
@@ -415,8 +416,26 @@ export async function listElectronicBoundaries(query: ElectronicBoundaryQuery): 
       list: pageList
     };
   }
+  // 真实后端返回结构: { records, pageNo, pageSize, total, pages, ... }
+  // 这里做一层转换，统一为前端内部使用的 PageResult 结构
   const params: any = { ...query };
-  return await request<PageResult<ElectronicBoundary>>(api.get('/electronic-boundaries', { params }));
+  const raw = await request<{
+    records: ElectronicBoundary[];
+    pageNo: number;
+    pageSize: number;
+    total: number;
+    pages: number;
+    sortBy?: string;
+    order?: string;
+  }>(api.get('/electronic-boundaries', { params }));
+
+  return {
+    list: raw.records || [],
+    total: raw.total ?? (raw.records?.length || 0),
+    pages: raw.pages ?? 1,
+    pageNum: raw.pageNo ?? query.pageNum ?? 1,
+    pageSize: raw.pageSize ?? query.pageSize ?? (raw.records?.length || 10)
+  };
 }
 
 export async function queryBoundaryRealtime(body: BoundaryRealtimeRequest): Promise<BoundaryRealtimeResponse> {

@@ -35,65 +35,109 @@
       <div id="allmap" ref="mapEl" class="map-container"></div>
     </div>
     
-    <!-- 右侧：测站详细信息 -->
+    <!-- 右侧：详情信息（测站 / 电子界桩） -->
     <div class="detail-section">
       <el-card class="detail-card" shadow="never">
         <template #header>
           <div class="card-header">
-            <span class="title">测站详细信息</span>
+            <span class="title">{{ headerTitle }}</span>
           </div>
         </template>
         
         <!-- 未选中时提示 -->
-        <div v-if="!selectedStation" class="empty-tip">
+        <div v-if="!selectedStation && !selectedBoundary" class="empty-tip">
           <el-icon :size="48" color="#909399"><Location /></el-icon>
-          <p>点击地图上的测站查看详细信息</p>
+          <p>点击地图上的测站或电子界桩查看详细信息</p>
         </div>
         
-        <!-- 已选中测站详情 -->
-        <div v-else class="station-detail">
-          <el-descriptions :column="1" border size="default">
-            <el-descriptions-item label="测站名称">
-              {{ selectedStation.name }}
-            </el-descriptions-item>
-            <el-descriptions-item label="测站编号">
-              {{ selectedStation.stationCode }}
-            </el-descriptions-item>
-            <el-descriptions-item label="当前状态">
-              <el-button 
-                :type="selectedStation.status === 1 ? 'success' : 'info'" 
-                size="small"
-                @click="toggleStatus"
-              >
-                {{ selectedStation.status === 1 ? '在线' : '离线' }}
-              </el-button>
-            </el-descriptions-item>
-            <el-descriptions-item label="经度">
-              {{ selectedStation.lngWgs84 }}
-            </el-descriptions-item>
-            <el-descriptions-item label="纬度">
-              {{ selectedStation.latWgs84 }}
-            </el-descriptions-item>
-            <el-descriptions-item label="安装地址">
-              {{ selectedStation.address }}
-            </el-descriptions-item>
-          </el-descriptions>
-          
-          <!-- 操作按钮 -->
-          <div style="margin-top: 16px; text-align: center;">
-            <el-space>
-              <el-button type="primary" plain @click="viewDetail">详细信息</el-button>
-              <el-button type="danger" plain @click="deleteStation">删除</el-button>
-            </el-space>
+        <!-- 已选中详情：优先显示测站，其次电子界桩 -->
+        <div v-else>
+          <!-- 测站详情 -->
+          <div v-if="selectedStation" class="station-detail">
+            <el-descriptions :column="1" border size="default">
+              <el-descriptions-item label="测站名称">
+                {{ selectedStation.name }}
+              </el-descriptions-item>
+              <el-descriptions-item label="测站编号">
+                {{ selectedStation.stationCode }}
+              </el-descriptions-item>
+              <el-descriptions-item label="当前状态">
+                <el-button 
+                  :type="selectedStation.status === 1 ? 'success' : 'info'" 
+                  size="small"
+                  @click="toggleStatus"
+                >
+                  {{ selectedStation.status === 1 ? '在线' : '离线' }}
+                </el-button>
+              </el-descriptions-item>
+              <el-descriptions-item label="经度">
+                {{ selectedStation.lngWgs84 }}
+              </el-descriptions-item>
+              <el-descriptions-item label="纬度">
+                {{ selectedStation.latWgs84 }}
+              </el-descriptions-item>
+              <el-descriptions-item label="安装地址">
+                {{ selectedStation.address }}
+              </el-descriptions-item>
+            </el-descriptions>
+            
+            <!-- 操作按钮 -->
+            <div style="margin-top: 16px; text-align: center;">
+              <el-space>
+                <el-button type="primary" plain @click="viewDetail">详细信息</el-button>
+                <el-button type="danger" plain @click="deleteStation">删除</el-button>
+              </el-space>
+            </div>
+            
+            <!-- 历史数据图表区域 -->
+            <div v-if="historyData.length > 0" class="history-section">
+              <div class="section-title">历史监测数据</div>
+              <v-chart :option="chartOption" style="height: 260px; margin-top: 12px;" autoresize />
+            </div>
+            <div v-else class="no-history">
+              <el-empty description="暂无历史数据" :image-size="80" />
+            </div>
           </div>
-          
-          <!-- 历史数据图表区域 -->
-          <div v-if="historyData.length > 0" class="history-section">
-            <div class="section-title">历史监测数据</div>
-            <v-chart :option="chartOption" style="height: 260px; margin-top: 12px;" autoresize />
-          </div>
-          <div v-else class="no-history">
-            <el-empty description="暂无历史数据" :image-size="80" />
+
+          <!-- 电子界桩详情 -->
+          <div v-else-if="selectedBoundary" class="station-detail">
+            <el-descriptions :column="1" border size="default">
+              <el-descriptions-item label="界桩名称">
+                {{ selectedBoundary.name }}
+              </el-descriptions-item>
+              <el-descriptions-item label="界桩编号">
+                {{ selectedBoundary.boundaryCode }}
+              </el-descriptions-item>
+              <el-descriptions-item label="当前状态">
+                <el-tag :type="selectedBoundary.status === 1 ? 'success' : 'info'">
+                  {{ selectedBoundary.status === 1 ? '在线' : '离线' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="经度">
+                {{ selectedBoundary.lngWgs84 }}
+              </el-descriptions-item>
+              <el-descriptions-item label="纬度">
+                {{ selectedBoundary.latWgs84 }}
+              </el-descriptions-item>
+              <el-descriptions-item label="安装地址">
+                {{ selectedBoundary.address }}
+              </el-descriptions-item>
+              <el-descriptions-item label="材质">
+                {{ selectedBoundary.material || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="高度(m)">
+                {{ selectedBoundary.height ?? '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="埋深(m)">
+                {{ selectedBoundary.buryDepth ?? '-' }}
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <div style="margin-top: 16px; text-align: center;">
+              <el-space>
+                <el-button type="primary" plain @click="viewBoundaryDetail">详细信息</el-button>
+              </el-space>
+            </div>
           </div>
         </div>
       </el-card>
@@ -105,7 +149,8 @@
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { listTermiteStations, deleteTermiteStation, updateTermiteStation, queryTermiteRealtime, type TermiteStation } from '@/services/termiteStations';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { listElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
+import { ElMessage, ElMessageBox, ElTag } from 'element-plus';
 import { Location } from '@element-plus/icons-vue';
 import { use } from 'echarts/core';
 import VChart from 'vue-echarts';
@@ -121,8 +166,10 @@ declare const BMapGL: any;
 const mapEl = ref<HTMLDivElement | null>(null);
 let ws: WebSocket | null = null;
 let map: any = null;
-const markers: any[] = [];
+const stationMarkers: any[] = [];
+const boundaryMarkers: any[] = [];
 const selectedStation = ref<TermiteStation | null>(null);
+const selectedBoundary = ref<ElectronicBoundary | null>(null);
 const historyData = ref<Array<{ t: number; status: number }>>([]);
 let hoverOpenTimer: any = null;
 let lastHoverId: string | number | null = null;
@@ -132,6 +179,12 @@ const searchValue = ref<number | null>(null);
 const searchResults = ref<TermiteStation[]>([]);
 const searchLoading = ref(false);
 const allStations = ref<TermiteStation[]>([]);
+const allBoundaries = ref<ElectronicBoundary[]>([]);
+
+const headerTitle = computed(() => {
+  if (selectedBoundary.value) return '电子界桩详细信息';
+  return '测站详细信息';
+});
 
 async function searchStations(query: string) {
   if (!query) {
@@ -190,6 +243,19 @@ function viewDetail() {
         rtuid: s.rtuid, 
         reservoirCode: s.reservoirCode 
       } 
+    });
+  }
+}
+
+function viewBoundaryDetail() {
+  if (selectedBoundary.value) {
+    const b = selectedBoundary.value;
+    router.push({
+      path: '/boundary-detail',
+      query: {
+        id: b.id,
+        deviceId: b.deviceId
+      }
     });
   }
 }
@@ -312,9 +378,9 @@ async function loadData() {
     // 保存所有测站数据供搜索使用
     allStations.value = stationsWithRealtime;
     
-    clearMarkers();
+    clearStationMarkers();
     await Promise.all(stationsWithRealtime.map(s => addMarker(s)));
-    console.log('[MapView] 已添加标注数量:', markers.length);
+    console.log('[MapView] 已添加测站标注数量:', stationMarkers.length);
     
     // 自动调整地图视野以包含所有测站
     if (page.records.length > 0 && map) {
@@ -416,6 +482,7 @@ async function addMarker(station: TermiteStation) {
   // 监听点击事件 - 选中测站并显示详情
   marker.addEventListener('click', () => {
     console.log('[MapView] 点击测站:', station.name);
+    selectedBoundary.value = null;
     selectedStation.value = station;
     pushMockHistory(station);
     historyData.value = getMockHistory(station);
@@ -423,14 +490,90 @@ async function addMarker(station: TermiteStation) {
   
   // 将标注添加到地图
   map.addOverlay(marker);
-  markers.push(marker);
+  stationMarkers.push(marker);
   
-  console.log(`[MapView] ✓ 测站 ${station.id} (${station.name}) 标注已添加，当前总数: ${markers.length}`);
+  console.log(`[MapView] ✓ 测站 ${station.id} (${station.name}) 标注已添加，当前总数: ${stationMarkers.length}`);
 }
 
-function clearMarkers() {
-  try { markers.forEach((m:any) => map.removeOverlay(m)); } catch {}
-  markers.length = 0;
+async function loadBoundaryData() {
+  if (!map || !(window as any).BMapGL) return;
+  try {
+    console.log('[MapView] 开始加载电子界桩数据...');
+    // 与列表页保持一致，避免请求过大导致后端报错
+    const page = await listElectronicBoundaries({ pageNum: 1, pageSize: 50 });
+    const list = page.list || [];
+    allBoundaries.value = list;
+    clearBoundaryMarkers();
+    await Promise.all(list.map(b => addBoundaryMarker(b)));
+    console.log('[MapView] 已添加电子界桩标注数量:', boundaryMarkers.length);
+  } catch (e: any) {
+    console.error('[MapView] 加载电子界桩失败:', e);
+    // 这里不弹错误，避免影响测站地图的正常使用
+  }
+}
+
+async function addBoundaryMarker(boundary: ElectronicBoundary) {
+  if (!map || !(window as any).BMapGL) return;
+  const lng = boundary.lngBd09;
+  const lat = boundary.latBd09;
+  if (lng == null || lat == null) {
+    console.warn('[MapView] 电子界桩缺少 BD09 坐标，已跳过:', boundary.id);
+    return;
+  }
+  const point = new BMapGL.Point(lng, lat);
+  // 电子界桩使用橙色图标，与测站区分
+  const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
+    <path d="M12 0C7.6 0 4 3.6 4 8c0 5.9 8 20 8 20s8-14.1 8-20c0-4.4-3.6-8-8-8z" fill="#e6a23c" stroke="white" stroke-width="1.2"/>
+    <rect x="9" y="7" width="6" height="6" rx="1.5" fill="white"/>
+  </svg>`;
+  const icon = new BMapGL.Icon(
+    `data:image/svg+xml;base64,${btoa(svgIcon)}`,
+    new BMapGL.Size(24, 28),
+    { anchor: new BMapGL.Size(12, 28) }
+  );
+  const marker = new BMapGL.Marker(point, { icon });
+  (marker as any)._boundaryId = boundary.id;
+
+  marker.addEventListener('mouseover', () => {
+    if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
+    hoverOpenTimer = window.setTimeout(() => {
+      const infoWindow = new BMapGL.InfoWindow(
+        `<div style="padding:8px;line-height:1.8;font-size:13px;">
+          <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">${boundary.name}</div>
+          <div>界桩编号：${boundary.boundaryCode}</div>
+          <div>设备ID：${boundary.deviceId}</div>
+          <div style="color:#999;font-size:12px;margin-top:4px;">经纬度：${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+        </div>`,
+        {
+          width: 260,
+          height: 0,
+          enableMessage: false,
+          offset: new BMapGL.Size(0, -40)
+        }
+      );
+      map.openInfoWindow(infoWindow, point);
+    }, 150);
+  });
+
+  marker.addEventListener('click', () => {
+    console.log('[MapView] 点击电子界桩:', boundary.name);
+    selectedStation.value = null;
+    selectedBoundary.value = boundary;
+  });
+
+  // 将标注添加到地图
+  map.addOverlay(marker);
+  boundaryMarkers.push(marker);
+}
+
+function clearStationMarkers() {
+  try { stationMarkers.forEach((m:any) => map.removeOverlay(m)); } catch {}
+  stationMarkers.length = 0;
+}
+
+function clearBoundaryMarkers() {
+  try { boundaryMarkers.forEach((m:any) => map.removeOverlay(m)); } catch {}
+  boundaryMarkers.length = 0;
 }
 
 const AK = '7j9Zg3mGoFudBiK624Yw8TzPCdiqbNB5';
@@ -466,10 +609,10 @@ onMounted(async () => {
     ElMessage.error('百度地图脚本加载失败，请检查网络与 AK 配置');
     return;
   }
-  await loadData();
+  await Promise.all([loadData(), loadBoundaryData()]);
   try {
     ws = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://localhost:5174');
-    ws.onmessage = () => { loadData(); };
+    ws.onmessage = () => { Promise.all([loadData(), loadBoundaryData()]); };
   } catch {}
 });
 
