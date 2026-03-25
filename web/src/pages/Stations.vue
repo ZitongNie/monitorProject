@@ -83,9 +83,9 @@
       <el-table-column prop="reservoirCode" label="水库编码" min-width="130" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-button :type="row.status===1?'success':'info'" plain size="small" @click="toggleStatus(row)">
-            {{ row.status===1? '在线':'离线' }}
-          </el-button>
+          <el-tag :type="row.status === 1 ? 'success' : 'info'">
+            {{ row.status === 1 ? '在线' : '离线' }}
+          </el-tag>
         </template>
       </el-table-column>
         <!-- 白蚁预警列移除，统一以后端分页返回的 termiteStatus 展示 -->
@@ -363,19 +363,6 @@ async function save() {
     ElMessage.error(e.message || '保存失败');
   } finally {
     saving.value = false;
-  }
-}
-
-async function toggleStatus(row: TermiteStation) {
-  const newStatus = row.status === 1 ? 0 : 1;
-  const statusText = newStatus === 1 ? '在线' : '离线';
-  try {
-    await ElMessageBox.confirm(`确认将状态改为 ${statusText} 吗？`, '提示', { confirmButtonText: '确定', cancelButtonText: '取消' });
-    await updateTermiteStation(row.id, { status: newStatus });
-    ElMessage.success('状态已更新');
-    load();
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '状态更新失败');
   }
 }
 

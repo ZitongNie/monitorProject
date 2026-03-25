@@ -120,7 +120,7 @@
           <div class="no-hd">
             <ul>
               <li>{{ stats.stationTotal }}</li>
-              <li>0</li>
+              <li>{{ stats.boundaryTotal }}</li>
             </ul>
           </div>
           <div class="no-bd">
@@ -130,11 +130,41 @@
             </ul>
           </div>
         </div>
-        <div class="map">
-          <!-- 地图区域留空，仅保留背景装饰 -->
-          <div class="map1"></div>
-          <div class="map2"></div>
-          <div class="map3"></div>
+        <div class="map panel">
+          <div class="panel-inner" style="height: 100%; display: flex; flex-direction: column;">
+            <!-- 地图切换按钮 -->
+            <div class="map-controls">
+              <div 
+                class="map-btn" 
+                :class="{ active: currentMap === 'china' }"
+                @click="handleMapSwitch('china')"
+              >全国</div>
+              <div 
+                class="map-btn" 
+                :class="{ active: currentMap === 'hubei' }"
+                @click="handleMapSwitch('hubei')"
+              >湖北省</div>
+              <div 
+                class="map-btn" 
+                :class="{ active: currentMap === 'wuhan' }"
+                @click="handleMapSwitch('wuhan')"
+              >武汉市</div>
+            </div>
+            <!-- 地图背景装饰 -->
+            <div class="map1"></div>
+            <div class="map2"></div>
+            <div class="map3"></div>
+            <!-- Echarts 概化地图组件 -->
+            <div class="center-map" id="centerMapEchart">
+              <v-chart 
+                :option="currentMapOptions" 
+                autoresize 
+                :init-options="{renderer: 'canvas'}" 
+                @click="onMapRegionClick"
+              />
+            </div>
+          </div>
+          <div class="panel-footer"></div>
         </div>
       </div>
 
@@ -147,34 +177,34 @@
             <el-row :gutter="12" style="margin-bottom:12px">
               <el-col :span="12">
                 <el-card shadow="hover" class="stat-card">
-                  <el-statistic title="测试" :value="0">
+                  <el-statistic title="界桩总数" :value="stats.boundaryTotal">
                     <template #suffix>
-                      <el-icon color="#909399"><Odometer /></el-icon>
+                      <el-icon color="#409eff"><Odometer /></el-icon>
                     </template>
                   </el-statistic>
                 </el-card>
               </el-col>
               <el-col :span="12">
                 <el-card shadow="hover" class="stat-card">
-                  <el-statistic title="测试" :value="0">
+                  <el-statistic title="在线" :value="stats.boundaryOnline">
                     <template #suffix>
-                      <el-icon color="#909399"><Warning /></el-icon>
+                      <el-icon color="#67c23a"><CircleCheck /></el-icon>
                     </template>
                   </el-statistic>
                 </el-card>
               </el-col>
               <el-col :span="12" style="margin-top:12px">
                 <el-card shadow="hover" class="stat-card">
-                  <el-statistic title="测试" :value="0">
+                  <el-statistic title="离线" :value="stats.boundaryOffline">
                     <template #suffix>
-                      <el-icon color="#909399"><CircleCheck /></el-icon>
+                      <el-icon color="#f56c6c"><Warning /></el-icon>
                     </template>
                   </el-statistic>
                 </el-card>
               </el-col>
               <el-col :span="12" style="margin-top:12px">
                 <el-card shadow="hover" class="stat-card">
-                  <el-statistic title="测试" :value="0">
+                  <el-statistic title="未知预留" :value="0">
                     <template #suffix>
                       <el-icon color="#909399"><QuestionFilled /></el-icon>
                     </template>
@@ -186,7 +216,7 @@
 
           <!-- 电子界桩饼图（测试） -->
           <div class="panel chart-panel">
-            <h2>测试</h2>
+            <h2>界桩状态分布</h2>
             <div class="chart">
               <v-chart :option="pilePieOptions" autoresize />
             </div>
@@ -197,7 +227,29 @@
           <div class="panel table-panel">
             <h2>电子界桩预警</h2>
             <div class="chart">
-              <el-empty description="暂无界桩预警数据" />
+              <template v-if="boundaryAlerts.length">
+                <el-table :data="boundaryAlerts" size="small" height="240" border>
+                  <el-table-column label="预警信息">
+                    <template #default="{ row }">
+                      <div class="alert-item">
+                        <div class="alert-line1">
+                          <span class="alert-name">{{ row.name }}</span>
+                          <el-tag v-if="row.handleStatus === 0" size="small" type="danger" effect="plain">未处理</el-tag>
+                          <el-tag v-else size="small" type="success" effect="plain">已处理</el-tag>
+                        </div>
+                        <div class="alert-line2">
+                          <span class="muted">编号：{{ row.boundaryCode }}</span>
+                          <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
+                        </div>
+                        <div class="alert-line3">
+                          <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
+                        </div>
+                      </div>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </template>
+              <el-empty v-else description="暂无界桩预警数据" />
             </div>
             <div class="panel-footer"></div>
           </div>
@@ -217,13 +269,16 @@ import { listTermiteStations } from '@/services/termiteStations';
 import { listElectronicBoundaries } from '@/services/electronicBoundaries';
 import { updateAlertStatus } from '@/services/alerts';
 import { use } from 'echarts/core';
+import * as echarts from 'echarts/core';
 import VChart from 'vue-echarts';
 import { CanvasRenderer } from 'echarts/renderers';
-import { PieChart } from 'echarts/charts';
-import { LegendComponent, TooltipComponent } from 'echarts/components';
+import { PieChart, MapChart, EffectScatterChart } from 'echarts/charts';
+import { LegendComponent, TooltipComponent, TitleComponent, GeoComponent, VisualMapComponent } from 'echarts/components';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import chinaGeoJson from '@/assets/china.json';
 
-use([CanvasRenderer, PieChart, LegendComponent, TooltipComponent]);
+use([CanvasRenderer, PieChart, MapChart, EffectScatterChart, LegendComponent, TooltipComponent, TitleComponent, GeoComponent, VisualMapComponent]);
+echarts.registerMap('china', chinaGeoJson as any);
 
 const router = useRouter();
 const loading = ref(false);
@@ -245,6 +300,133 @@ const stats = reactive({
   boundaryOnline: 0,
   boundaryOffline: 0
 });
+
+// 当前呈现哪张地图
+const currentMap = ref<'china' | 'hubei' | 'wuhan'>('china');
+const registeredMaps = ref<string[]>(['china']);
+
+const mapUrls: Record<string, string> = {
+  hubei: '/hubei.json',
+  wuhan: '/wuhan.json'
+};
+
+async function handleMapSwitch(target: 'china' | 'hubei' | 'wuhan') {
+  if (target !== 'china' && !registeredMaps.value.includes(target)) {
+    loading.value = true;
+    try {
+      const res = await fetch(mapUrls[target]);
+      if (!res.ok) throw new Error('Network response was not ok');
+      const geoJson = await res.json();
+      echarts.registerMap(target, geoJson as any);
+      registeredMaps.value.push(target);
+    } catch (e: any) {
+      ElMessage.error(`加载${target === 'hubei' ? '湖北省' : '武汉市'}地图数据失败`);
+      loading.value = false;
+      return;
+    }
+    loading.value = false;
+  }
+  currentMap.value = target;
+}
+
+// 地图点击下钻逻辑
+function onMapRegionClick(params: any) {
+  // 如果点的是地图区域（而不是散点），且当前在中国地图
+  if (currentMap.value === 'china' && (params.name === '湖北省' || params.name === '湖北')) {
+    handleMapSwitch('hubei');
+  } 
+  // 如果在湖北地图，并且点击了武汉市
+  else if (currentMap.value === 'hubei' && (params.name === '武汉市' || params.name === '武汉')) {
+    handleMapSwitch('wuhan');
+  }
+}
+
+// 中国地图数据配置
+const centerMapData = ref([
+  { name: '浙江', value: [120.153576, 30.287459, 120] }, // [经度, 纬度, 数值]
+  { name: '广东', value: [113.280637, 23.125178, 85] },
+  { name: '江苏', value: [118.767413, 32.041544, 42] },
+  { name: '福建', value: [119.306239, 26.075302, 60] },
+  { name: '上海', value: [121.472644, 31.231706, 30] }
+]);
+
+// 湖北省地图模拟数据（这里只放示例坐标如武汉、宜昌等，如有真实业务需替换）
+const hubeiMapData = ref([
+  { name: '武汉', value: [114.305393, 30.593099, 150] },
+  { name: '襄阳', value: [112.144146, 32.042426, 60] },
+  { name: '宜昌', value: [111.286523, 30.691967, 45] }
+]);
+
+// 武汉市地图模拟数据
+const wuhanMapData = ref([
+  { name: '江汉区', value: [114.270924, 30.601463, 65] },
+  { name: '武昌区', value: [114.315891, 30.553896, 50] },
+  { name: '洪山区', value: [114.343763, 30.499878, 35] }
+]);
+
+const currentMapOptions = computed(() => {
+  const isChina = currentMap.value === 'china';
+  const isHubei = currentMap.value === 'hubei';
+  const isWuhan = currentMap.value === 'wuhan';
+  
+  // 决定当前显示哪组散点数据
+  let mapData = centerMapData.value;
+  if (isHubei) mapData = hubeiMapData.value;
+  if (isWuhan) mapData = wuhanMapData.value;
+
+  return {
+    tooltip: {
+      trigger: 'item',
+      formatter: (params: any) => {
+        if (params.seriesType === 'effectScatter' && params.data?.value) {
+          return `${params.name}<br/>测站数: ${params.data.value[2]}`;
+        }
+        return params.name || '';
+      }
+    },
+      geo: {
+      map: currentMap.value, // 直接使用对应注册的真实地图轮廓
+      zoom: 1.1, // 还原正常缩放级别，Echarts自动适配容器大小和边界
+      aspectScale: isChina ? 0.75 : 1, // 中国地图用默认0.75防过高，省市地图用1防压扁
+      roam: false,
+      itemStyle: {
+        areaColor: 'rgba(20, 41, 87, 0.78)',
+        borderColor: '#2cb0d9',
+        borderWidth: 1
+      },
+      emphasis: {
+        itemStyle: {
+          areaColor: 'rgba(57, 134, 192, 0.95)'
+        },
+        label: { show: false }
+      }
+    },
+    series: [
+      {
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        data: mapData,
+        symbolSize: (val: number[]) => Math.max((val?.[2] || 0) / 8, 8),
+        showEffectOn: 'render',
+        rippleEffect: { brushType: 'stroke', scale: 2.8 },
+        label: {
+          show: true,
+          formatter: '{b}',
+          position: 'right',
+          color: '#dff8ff',
+          fontSize: 12
+        },
+        itemStyle: {
+          color: '#00d7ff',
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 215, 255, 0.45)'
+        },
+        zlevel: 2
+      }
+    ]
+  };
+});
+
 interface StationAlert {
   stationId: number;
   stationCode: string;
@@ -256,6 +438,38 @@ interface StationAlert {
 }
 
 const stationAlerts = ref<StationAlert[]>([]);
+
+// 界桩预警结构和数据
+interface BoundaryAlert {
+  boundaryId: number;
+  boundaryCode: string;
+  name: string;
+  alertId: number;
+  alertTime: string;
+  alertDesc: string;
+  handleStatus: 0 | 1;
+}
+
+const boundaryAlerts = ref<BoundaryAlert[]>([
+  {
+    boundaryId: 101,
+    boundaryCode: "EB-WH-001",
+    name: "新洲1号界桩",
+    alertId: 2001,
+    alertTime: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    alertDesc: "界桩发生位移或倾斜异常，疑似受到外力碰撞",
+    handleStatus: 0
+  },
+  {
+    boundaryId: 102,
+    boundaryCode: "EB-WH-045",
+    name: "蔡甸边界测点",
+    alertId: 2002,
+    alertTime: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
+    alertDesc: "设备离线",
+    handleStatus: 1
+  }
+]);
 
 // 饼图配置
 const termitePieOptions = computed(() => ({
@@ -380,7 +594,46 @@ async function loadAlerts() {
     stats.stationNoData = stations.filter(s => s.termiteStatus === undefined).length;
     
     // 预警列表保持为空或后续单独接口加载（避免阻塞统计）
-    stationAlerts.value = [];
+    // 为了演示效果，填充一些编造的测试数据
+    const mockAlerts: StationAlert[] = [
+      {
+        stationId: 1,
+        stationCode: "WH-STA-001",
+        name: "江汉区沿江测站",
+        alertId: 1001,
+        alertTime: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+        alertDesc: "检测到白蚁活动迹象，活跃度指数超过阈值",
+        handleStatus: 0
+      },
+      {
+        stationId: 2,
+        stationCode: "WH-STA-005",
+        name: "洪山区南湖测站",
+        alertId: 1002,
+        alertTime: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+        alertDesc: "诱饵被大量消耗，建议尽快补充诱饵",
+        handleStatus: 0
+      },
+      {
+        stationId: 3,
+        stationCode: "WH-STA-012",
+        name: "青山古树群测站",
+        alertId: 1003,
+        alertTime: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+        alertDesc: "设备电压过低（<15%），需更换电池",
+        handleStatus: 1
+      },
+      {
+        stationId: 4,
+        stationCode: "WH-STA-024",
+        name: "武昌江滩公园点",
+        alertId: 1004,
+        alertTime: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+        alertDesc: "传感器无法连接，设备可能已离线或损坏",
+        handleStatus: 0
+      }
+    ];
+    stationAlerts.value = mockAlerts;
     
     ElMessage.success('数据已刷新');
   } catch (e: any) {
@@ -491,10 +744,15 @@ onBeforeUnmount(() => {
 }
 
 .screen-header h1 {
-  font-size: 24px;
+  font-size: 32px;
   color: #fff;
   text-align: center;
   line-height: 60px;
+  letter-spacing: 4px;
+  font-weight: 600;
+  background: linear-gradient(180deg, #ffffff, #80d4ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .showTime {
@@ -529,12 +787,15 @@ onBeforeUnmount(() => {
 }
 
 .mainbox .column {
-  flex: 1;
+  flex: 3;
   min-width: 0;
 }
 
 .mainbox .column:nth-child(2) {
-  flex: 1.2;
+  flex: 5;
+  margin: 0 10px; /* 两边加一点点间距，让中间更加独立 */
+  display: flex;
+  flex-direction: column;
 }
 
 .panel {
@@ -601,8 +862,10 @@ onBeforeUnmount(() => {
   line-height: 36px;
   text-align: center;
   color: #fff;
-  font-size: 14px;
-  font-weight: 400;
+  font-size: 18px; /* 调大字号更醒目 */
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px #02a6b5; /* 增加发光效果 */
 }
 
 .panel .chart {
@@ -618,7 +881,14 @@ onBeforeUnmount(() => {
   background: radial-gradient(circle at top left, rgba(25, 186, 139, 0.18), transparent 60%),
     rgba(5, 25, 55, 0.9);
   border-color: rgba(25, 186, 139, 0.6);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.12) inset;
+  box-shadow: 0 0 16px rgba(0, 255, 255, 0.18) inset;
+  transition: all 0.3s;
+  cursor: default;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.35) inset, 0 5px 15px rgba(0, 255, 255, 0.2);
 }
 
 /* 中列数字大屏与地图装饰：等比例缩小，仍保证可见 */
@@ -663,13 +933,14 @@ onBeforeUnmount(() => {
   position: relative;
   flex: 1;
   text-align: center;
-  height: 64px;
-  line-height: 64px;
-  font-size: 34px;
+  height: 80px; /* 增大高度 */
+  line-height: 80px;
+  font-size: 54px; /* 增大字号极其醒目 */
   color: #ffeb7b;
   padding: 4px 0;
   font-family: electronicFont, Arial, sans-serif;
   font-weight: bold;
+  text-shadow: 0 0 10px #ffeb7b, 0 0 20px #ffac40;
 }
 
 .no .no-hd ul li:first-child::after {
@@ -688,17 +959,63 @@ onBeforeUnmount(() => {
 
 .no .no-bd ul li {
   flex: 1;
-  height: 26px;
-  line-height: 26px;
+  height: 30px;
+  line-height: 30px;
   text-align: center;
-  font-size: 13px;
-  color: rgba(245, 250, 255, 0.9);
+  font-size: 16px;
+  font-weight: bold;
+  color: rgba(245, 250, 255, 0.95);
   padding-top: 4px;
 }
 
 .map {
   position: relative;
-  height: 340px;
+  flex: 1; /* 撑满剩余高度 */
+  min-height: 600px; /* 保证一定的基础高度 */
+  display: flex !important;
+  flex-direction: column;
+}
+
+.map .panel-inner {
+  position: relative;
+  flex: 1;
+}
+
+.map-controls {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  gap: 15px;
+  background: rgba(5, 25, 55, 0.6);
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 242, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.map-btn {
+  font-size: 14px;
+  color: #a0cfff;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.map-btn:hover {
+  color: #00f2ff;
+  text-shadow: 0 0 5px #00f2ff;
+}
+
+.map-btn.active {
+  background: rgba(0, 242, 255, 0.2);
+  color: #fff;
+  font-weight: bold;
+  box-shadow: inset 0 0 8px rgba(0, 242, 255, 0.5);
+  text-shadow: 0 0 8px #00f2ff;
 }
 
 .map .map1,
@@ -766,12 +1083,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
-  color: rgba(200, 220, 255, 0.7);
+  font-size: 13px;
+  color: rgba(230, 245, 255, 0.95);
 }
 .alert-line3 {
-  font-size: 12px;
-  color: rgba(200, 220, 255, 0.7);
+  font-size: 13px;
+  color: rgba(230, 245, 255, 0.95);
 }
 .alert-desc {
   word-break: break-word;
@@ -790,20 +1107,32 @@ onBeforeUnmount(() => {
   border-bottom-color: rgba(25, 186, 139, 0.35);
 }
 
-:deep(.el-statistic__head),
-:deep(.el-statistic__title),
 :deep(.el-statistic__content),
 :deep(.el-statistic__number) {
   color: #ffffff !important;
-}
+    font-size: 34px !important;
+    font-weight: bold;
+    font-family: electronicFont, Arial, sans-serif;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+  }
 
-:deep(.el-table) {
+  :deep(.el-statistic__head),
+  :deep(.el-statistic__title) {
+    color: rgba(220, 235, 255, 0.95) !important;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    letter-spacing: 1px;
   background-color: transparent;
   color: #e8f5ff;
 }
 
 :deep(.el-table tr) {
   background-color: transparent;
+}
+
+:deep(.el-table tbody tr:hover > td) {
+  background-color: rgba(25, 186, 139, 0.2) !important;
 }
 
 :deep(.el-table th),
@@ -837,5 +1166,16 @@ onBeforeUnmount(() => {
 
 :deep(.el-button.is-plain) {
   border-color: rgba(0, 242, 255, 0.6);
+}
+
+/* 概化地图组件样式 */
+.center-map {
+  width: 100%;
+  height: 100% !important; /* 防止被 panel chart 的固定高度覆盖 */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
 }
 </style>

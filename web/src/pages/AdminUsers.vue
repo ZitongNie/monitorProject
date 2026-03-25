@@ -48,15 +48,18 @@
       <el-table-column prop="role" label="角色" min-width="100">
         <template #default="{ row }">{{ row.role==='admin' ? '管理员' : '普通用户' }}</template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="120">
+      <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-button 
-            size="small" 
-            :type="row.status===1?'success':'info'"
-            @click="toggleStatus(row)"
-          >
-            {{ row.status===1?'正常':'禁用' }}
-          </el-button>
+          <el-switch
+            :model-value="row.status"
+            :active-value="1"
+            :inactive-value="0"
+            inline-prompt
+            active-text="正常"
+            inactive-text="禁用"
+            style="--el-switch-on-color: #67c23a; --el-switch-off-color: #909399"
+            @change="toggleStatus(row)"
+          />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">

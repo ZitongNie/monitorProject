@@ -45,11 +45,19 @@ import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from
 use([CanvasRenderer, BarChart, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent]);
 
 const lineOption = ref<any>({
-  title: { text: '单站点安全/预警状态变化曲线' },
+  // title: { text: '单站点安全/预警状态变化曲线' },
   tooltip: { trigger: 'axis' },
   legend: { data: ['总次数', '安全次数', '预警次数'] },
-  xAxis: { type: 'category', data: [] },
-  yAxis: { type: 'value' },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { 
+    type: 'category', 
+    data: [], 
+    axisTick: { show: false } 
+  },
+  yAxis: { 
+    type: 'value',
+    splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
+  },
   series: [
     { name: '总次数', type: 'line', data: [] },
     { name: '安全次数', type: 'line', data: [] },
@@ -58,26 +66,40 @@ const lineOption = ref<any>({
 });
 
 const barOption = ref<any>({
-  title: { text: '多站点累计安全/预警次数统计' },
+  // title: { text: '多站点累计安全/预警次数统计' },
   tooltip: { trigger: 'axis' },
+  color: ['#fac858', '#91cc75', '#5470c6'],
   legend: { data: ['预警次数', '安全次数', '总次数'] },
-  xAxis: { type: 'category', data: [] },
-  yAxis: { type: 'value' },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { 
+    type: 'category', 
+    data: [],
+    axisTick: { show: false }
+  },
+  yAxis: { 
+    type: 'value',
+    splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }  
+  },
   series: [
-    { name: '预警次数', type: 'bar', stack: 'total', data: [] },
-    { name: '安全次数', type: 'bar', stack: 'total', data: [] },
-    { name: '总次数', type: 'bar', data: [] }
+    { name: '预警次数', type: 'bar', stack: 'total', barMaxWidth: 30, data: [] },
+    { name: '安全次数', type: 'bar', stack: 'total', barMaxWidth: 30, itemStyle: { borderRadius: [4, 4, 0, 0] }, data: [] },
+    { name: '总次数', type: 'bar', barMaxWidth: 30, itemStyle: { borderRadius: [4, 4, 0, 0] }, data: [] }
   ]
 });
 
 const pieOption = ref<any>({
-  title: { text: '按是否预警分类的站点数量分布' },
+  // title: { text: '按是否预警分类的站点数量分布' },
   tooltip: { trigger: 'item' },
   legend: { bottom: 0 },
   series: [
     {
       type: 'pie',
-      radius: '60%',
+      radius: ['40%', '70%'],
+      itemStyle: {
+        borderRadius: 8,
+        borderColor: '#fff',
+        borderWidth: 2
+      },
       data: []
     }
   ]

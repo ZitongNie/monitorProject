@@ -62,13 +62,9 @@
                 {{ selectedStation.stationCode }}
               </el-descriptions-item>
               <el-descriptions-item label="当前状态">
-                <el-button 
-                  :type="selectedStation.status === 1 ? 'success' : 'info'" 
-                  size="small"
-                  @click="toggleStatus"
-                >
+                <el-tag :type="selectedStation.status === 1 ? 'success' : 'info'">
                   {{ selectedStation.status === 1 ? '在线' : '离线' }}
-                </el-button>
+                </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="经度">
                 {{ selectedStation.lngWgs84 }}
@@ -257,40 +253,6 @@ function viewBoundaryDetail() {
         deviceId: b.deviceId
       }
     });
-  }
-}
-
-async function toggleStatus() {
-  if (!selectedStation.value) return;
-  
-  const station = selectedStation.value;
-  const newStatus = station.status === 1 ? 0 : 1;
-  const statusText = newStatus === 1 ? '在线' : '离线';
-  
-  try {
-    await ElMessageBox.confirm(
-      `确认将测站 "${station.name}" 状态改为 ${statusText} 吗？`,
-      '状态切换',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-    
-    // 执行更新
-    await updateTermiteStation(station.id, { status: newStatus });
-    ElMessage.success('状态已更新');
-    
-    // 更新本地选中的测站状态
-    selectedStation.value.status = newStatus;
-    
-    // 重新加载地图数据以更新marker颜色
-    await loadData();
-  } catch (e: any) {
-    if (e !== 'cancel') {
-      ElMessage.error(e.message || '状态更新失败');
-    }
   }
 }
 
