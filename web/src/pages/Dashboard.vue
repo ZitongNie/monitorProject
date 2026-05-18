@@ -78,32 +78,30 @@
             <h2>最新预警</h2>
             <div class="chart">
               <template v-if="stationAlerts.length">
-                <el-table :data="stationAlerts" size="small" height="240" border>
-                  <el-table-column label="预警信息">
-                    <template #default="{ row }">
-                      <div class="alert-item">
-                        <div class="alert-line1">
-                          <span class="alert-name">{{ row.name }}</span>
-                          <el-tag v-if="row.handleStatus === 0" size="small" type="danger" effect="plain">未处理</el-tag>
-                          <el-tag v-else size="small" type="success" effect="plain">已处理</el-tag>
-                        </div>
-                        <div class="alert-line2">
-                          <span class="muted">编号：{{ row.stationCode }}</span>
-                          <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
-                        </div>
-                        <div class="alert-line3">
-                          <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
-                        </div>
-                        <div class="alert-actions">
-                          <el-space>
-                            <el-button type="primary" plain size="small" @click="viewStationDetail(row.stationId)">查看详情</el-button>
-                            <el-button v-if="row.handleStatus === 0" type="success" plain size="small" @click="handleAlert(row)">已处理</el-button>
-                          </el-space>
-                        </div>
+                <div class="alert-scroll">
+                  <div v-for="row in stationAlerts" :key="row.alertId" class="alert-card">
+                    <div class="alert-item">
+                      <div class="alert-line1">
+                        <span class="alert-name">{{ row.name }}</span>
+                        <el-tag v-if="row.handleStatus === 0" size="small" type="danger" effect="plain">未处理</el-tag>
+                        <el-tag v-else size="small" type="success" effect="plain">已处理</el-tag>
                       </div>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                      <div class="alert-line2">
+                        <span class="muted">编号：{{ row.stationCode }}</span>
+                        <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
+                      </div>
+                      <div class="alert-line3">
+                        <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
+                      </div>
+                      <div class="alert-actions">
+                        <el-space>
+                          <el-button type="primary" plain size="small" @click="viewStationDetail(row.stationId)">查看详情</el-button>
+                          <el-button v-if="row.handleStatus === 0" type="success" plain size="small" @click="handleAlert(row)">已处理</el-button>
+                        </el-space>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </template>
               <el-empty v-else description="暂无预警" />
             </div>
@@ -228,26 +226,24 @@
             <h2>电子界桩预警</h2>
             <div class="chart">
               <template v-if="boundaryAlerts.length">
-                <el-table :data="boundaryAlerts" size="small" height="240" border>
-                  <el-table-column label="预警信息">
-                    <template #default="{ row }">
-                      <div class="alert-item">
-                        <div class="alert-line1">
-                          <span class="alert-name">{{ row.name }}</span>
-                          <el-tag v-if="row.handleStatus === 0" size="small" type="danger" effect="plain">未处理</el-tag>
-                          <el-tag v-else size="small" type="success" effect="plain">已处理</el-tag>
-                        </div>
-                        <div class="alert-line2">
-                          <span class="muted">编号：{{ row.boundaryCode }}</span>
-                          <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
-                        </div>
-                        <div class="alert-line3">
-                          <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
-                        </div>
+                <div class="alert-scroll">
+                  <div v-for="row in boundaryAlerts" :key="row.alertId" class="alert-card">
+                    <div class="alert-item">
+                      <div class="alert-line1">
+                        <span class="alert-name">{{ row.name }}</span>
+                        <el-tag v-if="row.handleStatus === 0" size="small" type="danger" effect="plain">未处理</el-tag>
+                        <el-tag v-else size="small" type="success" effect="plain">已处理</el-tag>
                       </div>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                      <div class="alert-line2">
+                        <span class="muted">编号：{{ row.boundaryCode }}</span>
+                        <span class="muted">时间：{{ formatDateTime(row.alertTime) }}</span>
+                      </div>
+                      <div class="alert-line3">
+                        <span class="muted alert-desc" :title="row.alertDesc">{{ row.alertDesc }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </template>
               <el-empty v-else description="暂无界桩预警数据" />
             </div>
@@ -266,7 +262,7 @@ import { onMounted, onBeforeUnmount, ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
 import { listTermiteStations, type TermiteStation } from '@/services/termiteStations';
-import { listElectronicBoundaries } from '@/services/electronicBoundaries';
+import { listElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
 import { updateAlertStatus } from '@/services/alerts';
 import { use } from 'echarts/core';
 import * as echarts from 'echarts/core';
@@ -350,6 +346,14 @@ interface MapPoint {
   noDataCount: number;
 }
 
+interface BoundaryMapPoint {
+  name: string;
+  value: [number, number, number];
+  boundaryTotal: number;
+  boundaryOnline: number;
+  boundaryOffline: number;
+}
+
 const defaultChinaMapData: MapPoint[] = [
   { name: '湖北省', value: [114.305393, 30.593099, 160], stationCount: 8, termiteCount: 5, noTermiteCount: 2, noDataCount: 1 }
 ];
@@ -368,6 +372,13 @@ const centerMapData = ref<MapPoint[]>([...defaultChinaMapData]);
 const hubeiMapData = ref<MapPoint[]>([...defaultHubeiMapData]);
 const wuhanMapData = ref<MapPoint[]>([...defaultWuhanMapData]);
 
+const centerBoundaryOnlineMapData = ref<BoundaryMapPoint[]>([]);
+const centerBoundaryOfflineMapData = ref<BoundaryMapPoint[]>([]);
+const hubeiBoundaryOnlineMapData = ref<BoundaryMapPoint[]>([]);
+const hubeiBoundaryOfflineMapData = ref<BoundaryMapPoint[]>([]);
+const wuhanBoundaryOnlineMapData = ref<BoundaryMapPoint[]>([]);
+const wuhanBoundaryOfflineMapData = ref<BoundaryMapPoint[]>([]);
+
 function getStationLngLat(station: TermiteStation): [number, number] | null {
   if (typeof station.lngWgs84 === 'number' && typeof station.latWgs84 === 'number') {
     return [station.lngWgs84, station.latWgs84];
@@ -376,6 +387,30 @@ function getStationLngLat(station: TermiteStation): [number, number] | null {
     return [station.lngBd09, station.latBd09];
   }
   return null;
+}
+
+function getBoundaryLngLat(boundary: ElectronicBoundary): [number, number] | null {
+  if (typeof boundary.lngWgs84 === 'number' && typeof boundary.latWgs84 === 'number') {
+    return [boundary.lngWgs84, boundary.latWgs84];
+  }
+  if (typeof boundary.lngBd09 === 'number' && typeof boundary.latBd09 === 'number') {
+    return [boundary.lngBd09, boundary.latBd09];
+  }
+  return null;
+}
+
+function getBoundaryCityName(boundary: ElectronicBoundary): string {
+  const address = boundary.address || '';
+  const cityMatch = address.match(/([^省自治区直辖市]+市)/);
+  if (cityMatch?.[1]) return cityMatch[1];
+  return '武汉市';
+}
+
+function getBoundaryProvinceName(boundary: ElectronicBoundary): string {
+  const address = boundary.address || '';
+  const provinceMatch = address.match(/([^自治区省市]+省|[^自治区省市]+市|广西壮族自治区|内蒙古自治区|西藏自治区|宁夏回族自治区|新疆维吾尔自治区)/);
+  if (provinceMatch?.[1]) return provinceMatch[1];
+  return '湖北省';
 }
 
 function getCityName(station: TermiteStation): string {
@@ -432,6 +467,89 @@ function aggregateToMapPoints(map: Map<string, { sumLng: number; sumLat: number;
   }));
 }
 
+function rebuildDashboardBoundaryMapPoints(boundaries: ElectronicBoundary[]) {
+  const withCoord = boundaries
+    .map(boundary => ({ boundary, lngLat: getBoundaryLngLat(boundary) }))
+    .filter((item): item is { boundary: ElectronicBoundary; lngLat: [number, number] } => !!item.lngLat);
+
+  if (!withCoord.length) {
+    centerBoundaryOnlineMapData.value = [];
+    centerBoundaryOfflineMapData.value = [];
+    hubeiBoundaryOnlineMapData.value = [];
+    hubeiBoundaryOfflineMapData.value = [];
+    wuhanBoundaryOnlineMapData.value = [];
+    wuhanBoundaryOfflineMapData.value = [];
+    return;
+  }
+
+  const chinaAggregate = new Map<string, { sumLng: number; sumLat: number; total: number; online: number; offline: number }>();
+  const hubeiAggregate = new Map<string, { sumLng: number; sumLat: number; total: number; online: number; offline: number }>();
+
+  const push = (
+    map: Map<string, { sumLng: number; sumLat: number; total: number; online: number; offline: number }>,
+    key: string,
+    lng: number,
+    lat: number,
+    status: 0 | 1
+  ) => {
+    const entry = map.get(key) || { sumLng: 0, sumLat: 0, total: 0, online: 0, offline: 0 };
+    entry.sumLng += lng;
+    entry.sumLat += lat;
+    entry.total += 1;
+    if (status === 1) entry.online += 1;
+    else entry.offline += 1;
+    map.set(key, entry);
+  };
+
+  for (const { boundary, lngLat } of withCoord) {
+    const [lng, lat] = lngLat;
+    push(chinaAggregate, getBoundaryProvinceName(boundary), lng, lat, boundary.status);
+    push(hubeiAggregate, getBoundaryCityName(boundary), lng, lat, boundary.status);
+  }
+
+  const toSeries = (
+    map: Map<string, { sumLng: number; sumLat: number; total: number; online: number; offline: number }>,
+    mode: 'online' | 'offline'
+  ): BoundaryMapPoint[] => {
+    const list: BoundaryMapPoint[] = [];
+    for (const [name, item] of map.entries()) {
+      const count = mode === 'online' ? item.online : item.offline;
+      if (!count) continue;
+      list.push({
+        name,
+        // 保持第三维稳定，点大小改由 symbolSize 按总数做上限控制，避免全国图出现巨大光点
+        value: [item.sumLng / item.total, item.sumLat / item.total, 60],
+        boundaryTotal: item.total,
+        boundaryOnline: item.online,
+        boundaryOffline: item.offline
+      });
+    }
+    return list;
+  };
+
+  centerBoundaryOnlineMapData.value = toSeries(chinaAggregate, 'online');
+  centerBoundaryOfflineMapData.value = toSeries(chinaAggregate, 'offline');
+  hubeiBoundaryOnlineMapData.value = toSeries(hubeiAggregate, 'online');
+  hubeiBoundaryOfflineMapData.value = toSeries(hubeiAggregate, 'offline');
+
+  // 武汉市地图：只展示武汉市范围内的界桩，按在线/离线分别绘制（点位更直观）
+  const wuhanBoundaries = withCoord
+    .filter(({ boundary }) => {
+      const city = getBoundaryCityName(boundary);
+      return city === '武汉市' || (boundary.address || '').includes('武汉');
+    })
+    .map(({ boundary, lngLat }): BoundaryMapPoint => ({
+      name: boundary.name || boundary.boundaryCode,
+      value: [lngLat[0], lngLat[1], 60],
+      boundaryTotal: 1,
+      boundaryOnline: boundary.status === 1 ? 1 : 0,
+      boundaryOffline: boundary.status === 0 ? 1 : 0
+    }));
+
+  wuhanBoundaryOnlineMapData.value = wuhanBoundaries.filter(p => p.boundaryOnline > 0);
+  wuhanBoundaryOfflineMapData.value = wuhanBoundaries.filter(p => p.boundaryOffline > 0);
+}
+
 function rebuildDashboardMapPoints(stations: TermiteStation[]) {
   const withCoord = stations
     .map(station => ({ station, lngLat: getStationLngLat(station) }))
@@ -477,10 +595,28 @@ const currentMapOptions = computed(() => {
   if (isHubei) mapData = hubeiMapData.value;
   if (isWuhan) mapData = wuhanMapData.value;
 
+  let boundaryOnlineData = centerBoundaryOnlineMapData.value;
+  let boundaryOfflineData = centerBoundaryOfflineMapData.value;
+  if (isHubei) {
+    boundaryOnlineData = hubeiBoundaryOnlineMapData.value;
+    boundaryOfflineData = hubeiBoundaryOfflineMapData.value;
+  }
+  if (isWuhan) {
+    boundaryOnlineData = wuhanBoundaryOnlineMapData.value;
+    boundaryOfflineData = wuhanBoundaryOfflineMapData.value;
+  }
+  const boundaryData = [...boundaryOnlineData, ...boundaryOfflineData];
+
   return {
     tooltip: {
       trigger: 'item',
       formatter: (params: any) => {
+        if (params.seriesName?.includes('界桩') && params.data?.value) {
+          const total = params.data?.boundaryTotal ?? '-';
+          const online = params.data?.boundaryOnline ?? '-';
+          const offline = params.data?.boundaryOffline ?? '-';
+          return `${params.name}<br/>界桩总数: ${total}<br/>在线: ${online}<br/>离线: ${offline}`;
+        }
         if (params.seriesType === 'effectScatter' && params.data?.value) {
           const stationCount = params.data?.stationCount ?? '-';
           const termiteCount = params.data?.termiteCount ?? '-';
@@ -510,6 +646,7 @@ const currentMapOptions = computed(() => {
     },
     series: [
       {
+        name: '测站',
         type: 'effectScatter',
         coordinateSystem: 'geo',
         data: mapData,
@@ -529,6 +666,25 @@ const currentMapOptions = computed(() => {
           shadowColor: 'rgba(0, 215, 255, 0.45)'
         },
         zlevel: 2
+      },
+      {
+        name: '界桩',
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        data: boundaryData,
+        symbolSize: (_val: number[], params: any) => {
+          const total = Number(params?.data?.boundaryTotal || 1);
+          return Math.min(14, 8 + Math.sqrt(total) * 1.6);
+        },
+        showEffectOn: 'render',
+        rippleEffect: { brushType: 'stroke', scale: 1.9 },
+        label: { show: false },
+        itemStyle: {
+          color: '#00d7ff',
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 215, 255, 0.4)'
+        },
+        zlevel: 4
       }
     ]
   };
@@ -758,6 +914,7 @@ async function loadBoundaryStats() {
     stats.boundaryTotal = page.total;
     stats.boundaryOnline = list.filter(b => b.status === 1).length;
     stats.boundaryOffline = list.filter(b => b.status === 0).length;
+    rebuildDashboardBoundaryMapPoints(list);
   } catch (e: any) {
     ElMessage.error(e.message || '加载电子界桩统计失败');
   }
@@ -833,9 +990,17 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-root {
-  padding: 8px 8px 0;
+  --dash-gap: clamp(8px, 0.7vw, 16px);
+  --dash-pad-x: clamp(8px, 0.9vw, 18px);
+  --dash-pad-y: clamp(6px, 0.7vw, 12px);
+  --dash-header-h: clamp(64px, 7vh, 82px);
+
+  padding: var(--dash-pad-y) var(--dash-pad-x);
   box-sizing: border-box;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: url('/images/bg.jpg') no-repeat #000;
   background-size: cover;
@@ -846,17 +1011,18 @@ onBeforeUnmount(() => {
 /* 复刻 original/echart header，但用 px 调整在 PC 下更合适 */
 .screen-header {
   position: relative;
-  height: 72px;
+  height: var(--dash-header-h);
   background: url('/images/head_bg.png') no-repeat top center;
   background-size: 100% 100%;
+  flex-shrink: 0;
 }
 
 .screen-header h1 {
-  font-size: 32px;
+  font-size: clamp(22px, 1.35vw, 36px);
   color: #fff;
   text-align: center;
-  line-height: 60px;
-  letter-spacing: 4px;
+  line-height: calc(var(--dash-header-h) - 12px);
+  letter-spacing: clamp(1px, 0.22vw, 4px);
   font-weight: 600;
   background: linear-gradient(180deg, #ffffff, #80d4ff);
   -webkit-background-clip: text;
@@ -867,8 +1033,8 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   right: 24px;
-  line-height: 60px;
-  font-size: 13px;
+  line-height: calc(var(--dash-header-h) - 12px);
+  font-size: clamp(12px, 0.72vw, 14px);
   color: rgba(255, 255, 255, 0.7);
 }
 
@@ -886,24 +1052,45 @@ onBeforeUnmount(() => {
 
 /* 三列主区域：左右略窄，中间略宽 */
 .mainbox {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  max-width: 1920px;
-  margin: 12px auto;
-  display: flex;
-  gap: 12px;
-  padding: 0 12px;
+  margin-top: var(--dash-gap);
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(520px, 1.5fr) minmax(320px, 1fr);
+  gap: var(--dash-gap);
+  align-items: stretch;
 }
 
 .mainbox .column {
-  flex: 3;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .mainbox .column:nth-child(2) {
-  flex: 5;
-  margin: 0 10px; /* 两边加一点点间距，让中间更加独立 */
+  margin: 0;
+}
+
+.mainbox > .column > .panel {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  margin-bottom: 0;
+}
+
+/* 顶层左右列中的“预警面板”占满剩余空间 */
+.mainbox > .column > .panel > .table-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mainbox > .column > .panel > .table-panel > h2 {
+  flex-shrink: 0;
 }
 
 .panel {
@@ -1079,7 +1266,7 @@ onBeforeUnmount(() => {
 .map {
   position: relative;
   flex: 1; /* 撑满剩余高度 */
-  min-height: 600px; /* 保证一定的基础高度 */
+  min-height: clamp(360px, 48vh, 900px); /* 保证一定的基础高度 */
   display: flex !important;
   flex-direction: column;
 }
@@ -1177,34 +1364,72 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .alert-line1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
 }
 .alert-name {
   font-weight: 600;
   color: #fefefe;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .alert-line2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
   font-size: 13px;
   color: rgba(230, 245, 255, 0.95);
 }
 .alert-line3 {
   font-size: 13px;
   color: rgba(230, 245, 255, 0.95);
+  min-width: 0;
 }
 .alert-desc {
-  word-break: break-word;
   white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 .alert-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* 预警区改为卡片滚动列表，且占满面板可用高度 */
+.table-panel .chart {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  overflow: hidden;
+}
+
+.alert-scroll {
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.alert-card {
+  border: 1px solid rgba(25, 186, 139, 0.25);
+  background: rgba(6, 25, 56, 0.92);
+  border-radius: 6px;
+  padding: 10px;
 }
 
 :deep(.el-card) {
@@ -1295,5 +1520,47 @@ onBeforeUnmount(() => {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10;
+}
+
+/* 超宽屏（带鱼屏）下扩大中间地图列占比，提升利用率 */
+@media (min-aspect-ratio: 21/9) {
+  .mainbox {
+    grid-template-columns: minmax(340px, 1fr) minmax(900px, 2fr) minmax(340px, 1fr);
+  }
+}
+
+/* 窄高屏（3:4、4:5）改为单列流式布局，保证可读性与无横向留白 */
+@media (max-aspect-ratio: 4/3) {
+  .dashboard-root {
+    overflow: auto;
+  }
+
+  .mainbox {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .mainbox .column:nth-child(2) {
+    order: 1;
+  }
+
+  .mainbox .column:nth-child(1) {
+    order: 2;
+  }
+
+  .mainbox .column:nth-child(3) {
+    order: 3;
+  }
+
+  .map {
+    min-height: 520px;
+  }
+}
+
+/* 常见 2K/高分辨率桌面：压缩横向内边距，进一步减少边缘空白 */
+@media (min-width: 2200px) {
+  .dashboard-root {
+    --dash-pad-x: clamp(6px, 0.45vw, 12px);
+  }
 }
 </style>

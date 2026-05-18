@@ -3,6 +3,7 @@
     <el-menu-item index="/dashboard"><el-icon><DataLine /></el-icon>概览</el-menu-item>
     <el-menu-item index="/map"><el-icon><MapLocation /></el-icon>地图</el-menu-item>
     <el-menu-item index="/stations"><el-icon><OfficeBuilding /></el-icon>白蚁测站</el-menu-item>
+    <el-menu-item index="/termite-reservoirs"><el-icon><MapLocation /></el-icon>水库白蚁监测</el-menu-item>
     <el-menu-item index="/boundaries"><el-icon><Guide /></el-icon>电子界桩</el-menu-item>
     <el-menu-item index="/analytics"><el-icon><PieChart /></el-icon>统计分析</el-menu-item>
     <el-sub-menu v-if="isAdmin" index="/admin">

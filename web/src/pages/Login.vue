@@ -29,10 +29,17 @@
               <el-icon><Lock /></el-icon>
             </template>
             <template #suffix>
-              <el-icon @click="passwordVisible = !passwordVisible" style="cursor:pointer;" class="reveal-icon">
-                <View v-if="passwordVisible" />
-                <Hide v-else />
-              </el-icon>
+              <button
+                class="pwd-toggle"
+                type="button"
+                :aria-label="passwordVisible ? '隐藏密码' : '显示密码'"
+                @click="passwordVisible = !passwordVisible"
+              >
+                <el-icon class="reveal-icon">
+                  <View v-if="passwordVisible" />
+                  <Hide v-else />
+                </el-icon>
+              </button>
             </template>
           </el-input>
         </el-form-item>
@@ -43,8 +50,8 @@
         </div>
         <!-- 登录和注册按钮 -->
         <div class="btn-row">
-          <el-button @click="regVisible = true" :disabled="loading" size="large" class="l-btn">注册新用户</el-button>
-          <el-button type="primary" @click="onSubmit" :loading="loading" size="large" class="l-btn">登 录</el-button>
+          <el-button @click="regVisible = true" :disabled="loading" size="large" class="l-btn l-btn-ghost">注册新用户</el-button>
+          <el-button type="primary" @click="onSubmit" :loading="loading" :disabled="loading" size="large" class="l-btn l-btn-primary">{{ loading ? '登录中...' : '登 录' }}</el-button>
         </div>
       </el-form>
       <div class="footer">© {{ year }} 监测数据平台</div>
@@ -53,7 +60,7 @@
 
   <!-- 注册弹窗 -->
   <el-dialog v-model="regVisible" title="注册新用户" width="480px">
-    <el-form :model="regForm" :rules="regRules" ref="regFormRef" label-width="88px">
+    <el-form :model="regForm" :rules="regRules" ref="regFormRef" label-width="88px" @keyup.enter="onRegister">
       <el-form-item label="用户名" prop="username">
         <el-input v-model.trim="regForm.username" placeholder="1-50 字符，建议字母/数字/下划线" />
       </el-form-item>
@@ -68,8 +75,8 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="regVisible = false">取消</el-button>
-      <el-button type="primary" :loading="regLoading" @click="onRegister">注册</el-button>
+      <el-button @click="regVisible = false" :disabled="regLoading">取消</el-button>
+      <el-button type="primary" :loading="regLoading" :disabled="regLoading" @click="onRegister">{{ regLoading ? '注册中...' : '注册' }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -91,18 +98,15 @@ const passwordVisible = ref(false);
 const form = reactive({ username: localStorage.getItem('lastUsername') || '', password: '', remember: !!localStorage.getItem('lastUsername') });
 const loading = ref(false);
 
-// 检测是否为Mock模式
-const MOCK = (import.meta as any).env?.VITE_AUTH_MOCK === '1' || (import.meta as any).env?.VITE_AUTH_MOCK === 'true';
-
 // 登录表单验证规则
 const rules = {
   username: [
-    { required: true, message: '用户名不能为空', trigger: 'blur' },
-    { min: 1, message: '用户名不能为空', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 1, message: '请输入用户名', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '密码不能为空', trigger: 'blur' },
-    { min: 6, message: '密码至少6位', trigger: 'blur' }
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于 6 位', trigger: 'blur' }
   ]
 };
 
@@ -144,12 +148,12 @@ const regForm = reactive<{ username: string; password: string; realName?: string
 // 注册表单验证规则
 const regRules = {
   username: [
-    { required: true, message: '用户名不能为空', trigger: 'blur' },
-    { min: 1, max: 50, message: '用户名长度 1-50', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 1, max: 50, message: '用户名长度需为 1-50 个字符', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '密码不能为空', trigger: 'blur' },
-    { min: 3, max: 64, message: '密码长度 3-64', trigger: 'blur' }
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 3, max: 64, message: '密码长度需为 3-64 个字符', trigger: 'blur' }
   ],
   phone: [
     { validator: (_: any, v: string, cb: any) => { if (!v) return cb(); /^1\d{10}$/.test(v) ? cb() : cb(new Error('手机号格式不正确')); }, trigger: 'blur' }
@@ -252,6 +256,16 @@ async function onRegister() {
 .reveal-icon { color: #909399; transition: color 0.2s; }
 .reveal-icon:hover { color: #409eff; }
 
+.pwd-toggle {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .actions { display:flex; align-items:center; justify-content:space-between; margin: 16px 0 24px 0; }
 .btn-row { display:flex; gap:16px; width: 100%; }
 .l-btn { 
@@ -261,23 +275,27 @@ async function onRegister() {
   letter-spacing: 1px;
   transition: all 0.3s ease;
 }
-.l-btn:has(span:contains("登 录")) {
+.l-btn-primary {
   background: linear-gradient(135deg, #409eff 0%, #3a8ee6 100%);
   border: none;
   box-shadow: 0 4px 12px rgba(64,158,255,0.3);
 }
-.l-btn:has(span:contains("登 录")):hover {
+.l-btn-primary:hover:not(.is-disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(64,158,255,0.4);
 }
-.l-btn:not(.el-button--primary) {
+.l-btn-ghost {
   background: rgba(255,255,255,0.6);
   border-color: rgba(64,158,255,0.3);
   color: #409eff;
 }
-.l-btn:not(.el-button--primary):hover {
+.l-btn-ghost:hover:not(.is-disabled) {
   background: #fff;
   border-color: #409eff;
+}
+
+:deep(.el-button.is-disabled) {
+  opacity: 0.65;
 }
 
 .footer { text-align:center; margin-top: 24px; color: #5c6b77; font-size: 13px; }
@@ -286,5 +304,17 @@ async function onRegister() {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-6px); }
   100% { transform: translateY(0px); }
+}
+
+@media (max-width: 768px) {
+  .login-card {
+    width: calc(100vw - 28px);
+    padding: 26px 18px 20px;
+    border-radius: 14px;
+  }
+
+  .btn-row {
+    gap: 10px;
+  }
 }
 </style>

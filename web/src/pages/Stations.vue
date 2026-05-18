@@ -15,7 +15,7 @@
     </template>
 
     <!-- 查询条件 -->
-    <el-form :model="query" label-width="96px" inline class="query-form">
+    <el-form :model="query" label-width="96px" inline class="query-form" @keyup.enter="onSearch">
       <el-form-item label="监测站编号"><el-input v-model="query.stationCode" placeholder="stationCode" clearable /></el-form-item>
       <el-form-item label="名称"><el-input v-model="query.name" placeholder="名称" clearable /></el-form-item>
       <el-form-item label="水库编码"><el-input v-model="query.reservoirCode" placeholder="reservoirCode" clearable /></el-form-item>
@@ -28,8 +28,8 @@
       <el-form-item label="联系人"><el-input v-model="query.contactPerson" placeholder="联系人" clearable /></el-form-item>
       <el-form-item>
         <el-space>
-          <el-button type="primary" @click="onSearch">搜索</el-button>
-          <el-button @click="onReset">重置</el-button>
+          <el-button type="primary" @click="onSearch" :disabled="loading">搜索</el-button>
+          <el-button @click="onReset" :disabled="loading">重置</el-button>
         </el-space>
       </el-form-item>
     </el-form>
@@ -91,8 +91,8 @@
         <!-- 白蚁预警列移除，统一以后端分页返回的 termiteStatus 展示 -->
         <el-table-column prop="termiteStatus" label="白蚁状态" width="110">
           <template #default="scope">
-            <el-tag :type="scope.row.termiteStatus === 1 ? 'danger' : 'success'">
-              {{ scope.row.termiteStatus === 1 ? '有白蚁' : '正常' }}
+            <el-tag :type="scope.row.termiteStatus === 1 ? 'danger' : (scope.row.termiteStatus === 0 ? 'success' : 'info')">
+              {{ scope.row.termiteStatus === 1 ? '有白蚁' : (scope.row.termiteStatus === 0 ? '正常' : '无数据') }}
             </el-tag>
           </template>
         </el-table-column>
@@ -126,7 +126,7 @@
 
   <!-- 新增/编辑弹窗 -->
   <el-dialog v-model="editVisible" :title="form.id? '编辑白蚁监测站':'新增白蚁监测站'" width="680px">
-    <el-form :model="form" label-width="120px" :rules="rules" ref="formRef">
+  <el-form :model="form" label-width="120px" :rules="rules" ref="formRef" @keyup.enter="save">
       <el-row :gutter="12">
         <el-col :span="12">
           <el-form-item label="监测站编号" prop="stationCode" required>
@@ -208,8 +208,8 @@
     </el-form>
     <template #footer>
       <el-space>
-        <el-button @click="editVisible=false">取消</el-button>
-        <el-button type="primary" @click="save" :loading="saving">保存</el-button>
+        <el-button @click="editVisible=false" :disabled="saving">取消</el-button>
+        <el-button type="primary" @click="save" :loading="saving" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</el-button>
       </el-space>
     </template>
   </el-dialog>
@@ -220,7 +220,7 @@ import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
-import { listTermiteStations, createTermiteStation, updateTermiteStation, deleteTermiteStation, queryTermiteRealtime, type TermiteStation, type TermiteStationQuery } from '@/services/termiteStations';
+import { listTermiteStations, createTermiteStation, updateTermiteStation, deleteTermiteStation, type TermiteStation, type TermiteStationQuery } from '@/services/termiteStations';
 
 // 扩展 TermiteStation 类型以包含 isAlert 属性
 interface TermiteStationWithAlert extends TermiteStation {
@@ -431,5 +431,28 @@ load();
 :deep(.el-dialog__body) {
   padding-top: 12px;
   padding-bottom: 12px;
+}
+
+@media (max-width: 768px) {
+  .query-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 0;
+  }
+
+  .query-form :deep(.el-form-item) {
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .query-form :deep(.el-form-item__content) {
+    width: 100%;
+  }
+
+  .pager-wrapper {
+    justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
 }
 </style>

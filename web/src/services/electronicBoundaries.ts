@@ -182,10 +182,12 @@ async function request<T>(promise: Promise<any>): Promise<T> {
 const MOCK_KEY = 'mock_electronic_boundaries_v1';
 
 function getMockList(): ElectronicBoundary[] {
+  let existing: ElectronicBoundary[] | null = null;
   try {
     const raw = localStorage.getItem(MOCK_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) existing = JSON.parse(raw);
   } catch {}
+
   const createBoundary = (
     id: number,
     boundaryCode: string,
@@ -227,13 +229,47 @@ function getMockList(): ElectronicBoundary[] {
   };
 
   const seed: ElectronicBoundary[] = [
+    // 武汉（5个点位）
     createBoundary(1, 'JZ-2025-0001', '界桩-江汉001', '5544332201', 114.305278, 30.593099, 1, '混凝土', 1.2, 0.3, '湖北省武汉市江汉区'),
     createBoundary(2, 'JZ-2025-0002', '界桩-硚口002', '5544332202', 114.315278, 30.603099, 1, '混凝土', 1.2, 0.3, '湖北省武汉市硚口区'),
     createBoundary(3, 'JZ-2025-0003', '界桩-江岸003', '5544332203', 114.295, 30.605, 0, '花岗岩', 1.3, 0.35, '湖北省武汉市江岸区'),
     createBoundary(4, 'JZ-2025-0004', '界桩-武昌004', '5544332204', 114.315, 30.585, 1, '不锈钢', 1.5, 0.4, '湖北省武汉市武昌区'),
-    createBoundary(5, 'JZ-2025-0005', '界桩-洪山005', '5544332205', 114.34, 30.57, 0, '混凝土', 1.1, 0.25, '湖北省武汉市洪山区')
+    createBoundary(5, 'JZ-2025-0005', '界桩-洪山005', '5544332205', 114.34, 30.57, 0, '混凝土', 1.1, 0.25, '湖北省武汉市洪山区'),
+
+    // 湖北其他地市（15个点位，均匀分布）
+    createBoundary(6, 'JZ-2025-0006', '界桩-黄石006', '5544332206', 115.038, 30.2, 1, '混凝土', 1.2, 0.3, '湖北省黄石市黄石港区'),
+    createBoundary(7, 'JZ-2025-0007', '界桩-十堰007', '5544332207', 110.799, 32.629, 0, '花岗岩', 1.3, 0.35, '湖北省十堰市茅箭区'),
+    createBoundary(8, 'JZ-2025-0008', '界桩-宜昌008', '5544332208', 111.286, 30.692, 1, '不锈钢', 1.4, 0.35, '湖北省宜昌市西陵区'),
+    createBoundary(9, 'JZ-2025-0009', '界桩-襄阳009', '5544332209', 112.144, 32.042, 1, '混凝土', 1.2, 0.3, '湖北省襄阳市襄城区'),
+    createBoundary(10, 'JZ-2025-0010', '界桩-鄂州010', '5544332210', 114.89, 30.396, 0, '花岗岩', 1.3, 0.35, '湖北省鄂州市鄂城区'),
+    createBoundary(11, 'JZ-2025-0011', '界桩-荆门011', '5544332211', 112.204, 31.035, 1, '混凝土', 1.2, 0.3, '湖北省荆门市掇刀区'),
+    createBoundary(12, 'JZ-2025-0012', '界桩-孝感012', '5544332212', 113.917, 30.924, 1, '混凝土', 1.1, 0.25, '湖北省孝感市孝南区'),
+    createBoundary(13, 'JZ-2025-0013', '界桩-荆州013', '5544332213', 112.24, 30.334, 0, '不锈钢', 1.4, 0.35, '湖北省荆州市沙市区'),
+    createBoundary(14, 'JZ-2025-0014', '界桩-黄冈014', '5544332214', 114.872, 30.453, 1, '混凝土', 1.2, 0.3, '湖北省黄冈市黄州区'),
+    createBoundary(15, 'JZ-2025-0015', '界桩-咸宁015', '5544332215', 114.328, 29.832, 0, '花岗岩', 1.3, 0.35, '湖北省咸宁市咸安区'),
+    createBoundary(16, 'JZ-2025-0016', '界桩-随州016', '5544332216', 113.371, 31.716, 1, '混凝土', 1.2, 0.3, '湖北省随州市曾都区'),
+    createBoundary(17, 'JZ-2025-0017', '界桩-恩施017', '5544332217', 109.488, 30.272, 1, '不锈钢', 1.4, 0.35, '湖北省恩施市'),
+    createBoundary(18, 'JZ-2025-0018', '界桩-仙桃018', '5544332218', 113.453, 30.365, 0, '混凝土', 1.1, 0.25, '湖北省仙桃市'),
+    createBoundary(19, 'JZ-2025-0019', '界桩-潜江019', '5544332219', 112.9, 30.402, 1, '混凝土', 1.2, 0.3, '湖北省潜江市'),
+    createBoundary(20, 'JZ-2025-0020', '界桩-神农架020', '5544332220', 110.671, 31.744, 0, '花岗岩', 1.3, 0.35, '湖北省神农架林区')
   ];
-  localStorage.setItem(MOCK_KEY, JSON.stringify(seed));
+
+  const TARGET_COUNT = 20;
+  if (existing && Array.isArray(existing)) {
+    if (existing.length >= TARGET_COUNT) return existing;
+    const codes = new Set(existing.map(b => b.boundaryCode));
+    const merged = existing.slice();
+    for (const b of seed) {
+      if (merged.length >= TARGET_COUNT) break;
+      if (codes.has(b.boundaryCode)) continue;
+      merged.push(b);
+      codes.add(b.boundaryCode);
+    }
+    setMockList(merged);
+    return merged;
+  }
+
+  setMockList(seed);
   return seed;
 }
 

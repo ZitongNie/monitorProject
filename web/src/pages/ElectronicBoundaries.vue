@@ -11,7 +11,7 @@
     </template>
 
     <!-- 查询条件 -->
-    <el-form :model="query" label-width="96px" inline class="query-form">
+    <el-form :model="query" label-width="96px" inline class="query-form" @keyup.enter="onSearch">
       <el-form-item label="关键词"><el-input v-model="query.keyword" placeholder="编号/名称/地址" clearable /></el-form-item>
       <el-form-item label="编号"><el-input v-model="query.boundaryCode" placeholder="boundaryCode" clearable /></el-form-item>
       <el-form-item label="设备ID"><el-input v-model="query.deviceId" placeholder="deviceId" clearable /></el-form-item>
@@ -23,8 +23,8 @@
       </el-form-item>
       <el-form-item>
         <el-space>
-          <el-button type="primary" @click="onSearch">搜索</el-button>
-          <el-button @click="onReset">重置</el-button>
+          <el-button type="primary" @click="onSearch" :disabled="loading">搜索</el-button>
+          <el-button @click="onReset" :disabled="loading">重置</el-button>
         </el-space>
       </el-form-item>
     </el-form>
@@ -79,7 +79,7 @@
 
   <!-- 新增/编辑弹窗 -->
   <el-dialog v-model="editVisible" :title="form.id? '编辑电子界桩':'新增电子界桩'" width="1020px">
-    <el-form :model="form" label-width="140px" :rules="rules" ref="formRef">
+    <el-form :model="form" label-width="140px" :rules="rules" ref="formRef" @keyup.enter="save">
       <el-row :gutter="12">
         <el-col :span="12"><el-form-item label="界桩编号" prop="boundaryCode" required><el-input v-model="form.boundaryCode" size="large" clearable /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="界桩名称" prop="name" required><el-input v-model="form.name" size="large" clearable /></el-form-item></el-col>
@@ -96,8 +96,8 @@
     </el-form>
     <template #footer>
       <el-space>
-        <el-button @click="editVisible=false">取消</el-button>
-        <el-button type="primary" @click="save" :loading="saving">保存</el-button>
+        <el-button @click="editVisible=false" :disabled="saving">取消</el-button>
+        <el-button type="primary" @click="save" :loading="saving" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</el-button>
       </el-space>
     </template>
   </el-dialog>
@@ -203,4 +203,27 @@ load();
 .pager-wrapper { display:flex; justify-content:flex-end; margin-top:8px; }
 :deep(.el-card) { border:none; box-shadow:none; height: calc(100vh - 100px); display: flex; flex-direction: column; }
 :deep(.el-card__header) { border-bottom:1px solid #e4e7ed; padding:12px 16px; flex-shrink: 0; }
+
+@media (max-width: 768px) {
+  .query-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 0;
+  }
+
+  .query-form :deep(.el-form-item) {
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .query-form :deep(.el-form-item__content) {
+    width: 100%;
+  }
+
+  .pager-wrapper {
+    justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+}
 </style>

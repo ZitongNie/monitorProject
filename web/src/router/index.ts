@@ -8,6 +8,7 @@ const Stations = () => import('../pages/Stations.vue');
 const StationDetail = () => import('../pages/StationDetail.vue');
 const Piles = () => import('../pages/Piles.vue');
 const Analytics = () => import('../pages/Analytics.vue');
+const TermiteReservoirs = () => import('../pages/TermiteReservoirs.vue');
 const AdminUsers = () => import('../pages/AdminUsers.vue');
 const AdminAssets = () => import('../pages/AdminAssets.vue');
 const ElectronicBoundaries = () => import('../pages/ElectronicBoundaries.vue');
@@ -31,6 +32,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'boundary-detail', name: 'boundary-detail', component: ElectronicBoundaryDetail },
       { path: 'piles', name: 'piles', component: Piles },
       { path: 'analytics', name: 'analytics', component: Analytics },
+      { path: 'termite-reservoirs', name: 'termite-reservoirs', component: TermiteReservoirs },
       { path: 'admin/users', name: 'admin-users', component: AdminUsers, meta: { role: 'admin' } },
       { path: 'admin/assets', name: 'admin-assets', component: AdminAssets, meta: { role: 'admin' } }
     ]

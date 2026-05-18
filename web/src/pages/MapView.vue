@@ -32,6 +32,27 @@
           </el-option>
         </el-select>
       </div>
+      <div class="map-toolbar">
+        <div class="toolbar-title">地图工具</div>
+        <el-space direction="vertical" :size="8" fill>
+          <el-button size="small" @click="resetMapView">重置视野</el-button>
+          <el-switch v-model="showStations" inline-prompt active-text="测站开" inactive-text="测站关" />
+          <el-switch v-model="onlyOnlineStations" inline-prompt active-text="在线" inactive-text="全部" />
+          <el-switch v-model="showBoundaries" inline-prompt active-text="界桩开" inactive-text="界桩关" />
+          <el-switch v-model="showLegend" inline-prompt active-text="图例开" inactive-text="图例关" />
+        </el-space>
+        <div class="toolbar-meta">缩放：{{ currentZoom }}</div>
+        <div class="toolbar-meta">测站：{{ visibleStationCount }}</div>
+        <div class="toolbar-meta">界桩：{{ visibleBoundaryCount }}</div>
+      </div>
+      <div v-if="showLegend" class="map-legend">
+        <div class="legend-title">图例</div>
+        <div class="legend-row"><span class="dot dot-station dot-alert"></span>测站：在线预警</div>
+        <div class="legend-row"><span class="dot dot-station dot-online"></span>测站：在线正常</div>
+        <div class="legend-row"><span class="dot dot-station dot-offline"></span>测站：离线</div>
+        <div class="legend-row"><span class="dot dot-boundary dot-boundary-online"></span>界桩：在线</div>
+        <div class="legend-row"><span class="dot dot-boundary dot-boundary-offline"></span>界桩：离线</div>
+      </div>
       <div id="allmap" ref="mapEl" class="map-container"></div>
     </div>
     
@@ -142,9 +163,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
+import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { listTermiteStations, deleteTermiteStation, updateTermiteStation, queryTermiteRealtime, type TermiteStation } from '@/services/termiteStations';
+import { listTermiteStations, deleteTermiteStation, queryTermiteRealtime, type TermiteStation } from '@/services/termiteStations';
 import { listElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
 import { ElMessage, ElMessageBox, ElTag } from 'element-plus';
 import { Location } from '@element-plus/icons-vue';
@@ -176,6 +197,29 @@ const searchResults = ref<TermiteStation[]>([]);
 const searchLoading = ref(false);
 const allStations = ref<TermiteStation[]>([]);
 const allBoundaries = ref<ElectronicBoundary[]>([]);
+const showStations = ref(true);
+const onlyOnlineStations = ref(false);
+const showBoundaries = ref(true);
+const showLegend = ref(true);
+const visibleStationCount = ref(0);
+const visibleBoundaryCount = ref(0);
+const currentZoom = ref(6);
+
+function svgToDataUrl(svg: string) {
+  // Use URI encoding to avoid base64/unicode pitfalls; Baidu Icon supports data:image/svg+xml
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function getStationMarkerColor(station: TermiteStation) {
+  const isOnline = station.status === 1;
+  if (!isOnline) return '#8c8c8c';
+  return (station as any).isAlert === 1 ? '#f56c6c' : '#409eff';
+}
+
+function getBoundaryMarkerColor(boundary: ElectronicBoundary) {
+  const isOnline = boundary.status === 1;
+  return isOnline ? '#67c23a' : '#8c8c8c';
+}
 
 const headerTitle = computed(() => {
   if (selectedBoundary.value) return '电子界桩详细信息';
@@ -214,7 +258,7 @@ function selectStation(stationId: number | null) {
     map.centerAndZoom(point, 15);
     
     // 触发对应的marker点击效果
-    const marker = markers.find(m => m._stationId === station.id);
+    const marker = stationMarkers.find((m: any) => m._stationId === station.id);
     if (marker) {
       // 模拟点击marker
       marker.dispatchEvent('click');
@@ -222,11 +266,6 @@ function selectStation(stationId: number | null) {
   }
   
   ElMessage.success(`已定位到 ${station.name}`);
-}
-
-function formatDateTime(dateStr: string) {
-  if (!dateStr) return '-';
-  return dayjs(dateStr).format('YYYY-MM-DD HH:mm:ss');
 }
 
 function viewDetail() {
@@ -340,28 +379,8 @@ async function loadData() {
     // 保存所有测站数据供搜索使用
     allStations.value = stationsWithRealtime;
     
-    clearStationMarkers();
-    await Promise.all(stationsWithRealtime.map(s => addMarker(s)));
-    console.log('[MapView] 已添加测站标注数量:', stationMarkers.length);
-    
-    // 自动调整地图视野以包含所有测站
-    if (page.records.length > 0 && map) {
-      const points = page.records
-        .filter(s => s.lngBd09 != null && s.latBd09 != null)
-        .map(s => new BMapGL.Point(s.lngBd09, s.latBd09));
-      
-      console.log('[MapView] 有效坐标点数量:', points.length);
-      
-      if (points.length > 0) {
-        try {
-          const view = map.getViewport(points);
-          map.centerAndZoom(view.center, view.zoom);
-          console.log('[MapView] 地图视野已调整至:', view.center, '缩放级别:', view.zoom);
-        } catch (e) {
-          console.warn('[MapView] 自动调整视野失败:', e);
-        }
-      }
-    }
+    await renderStationsFromCache();
+    fitMapToVisiblePoints();
   } catch (e: any) {
     console.error('[MapView] 加载测站失败:', e);
     ElMessage.error(e.message || '加载监测站失败');
@@ -388,23 +407,23 @@ async function addMarker(station: TermiteStation) {
   // 创建地图点（百度坐标系）
   const point = new BMapGL.Point(lng, lat);
   
-  // 根据状态使用不同颜色的标注图标
   const isOnline = station.status === 1;
-  // 正常在线=蓝色，有白蚁=红色，离线=灰色
-  let markerColor = '#8c8c8c';
-  if (isOnline) {
-    markerColor = (station as any).isAlert === 1 ? '#f56c6c' : '#409eff';
-  }
+  const markerColor = getStationMarkerColor(station);
+  const isAlert = isOnline && (station as any).isAlert === 1;
+  const opacity = isOnline ? 1 : 0.78;
   
   // 创建自定义图标（SVG 格式）
+  // 约定：测站=圆心；界桩=菱形心（视觉上区分类型）
   const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="35" viewBox="0 0 28 35">
-    <path d="M14 0C8.5 0 4 4.5 4 10c0 7.5 10 25 10 25s10-17.5 10-25c0-5.5-4.5-10-10-10z" 
-      fill="${markerColor}" stroke="white" stroke-width="1.5"/>
-    <circle cx="14" cy="10" r="4" fill="white"/>
+    <path d="M14 0C8.5 0 4 4.5 4 10c0 7.5 10 25 10 25s10-17.5 10-25c0-5.5-4.5-10-10-10z"
+      fill="${markerColor}" fill-opacity="${opacity}"
+      stroke="white" stroke-width="1.5"/>
+    <circle cx="14" cy="10" r="4.2" fill="white"/>
+    ${isAlert ? '<circle cx="14" cy="10" r="2" fill="#f56c6c"/>' : ''}
   </svg>`;
   
   const icon = new BMapGL.Icon(
-    `data:image/svg+xml;base64,${btoa(svgIcon)}`,
+    svgToDataUrl(svgIcon),
     new BMapGL.Size(28, 35),
     { anchor: new BMapGL.Size(14, 35) }  // 锚点设在图标底部中心
   );
@@ -420,7 +439,11 @@ async function addMarker(station: TermiteStation) {
     if (lastHoverId === station.id) return;
     if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
     hoverOpenTimer = window.setTimeout(() => {
-      const statusText = isOnline ? '<span style="color:#52c41a;font-weight:bold;">● 在线</span>' : '<span style="color:#ff4d4f;font-weight:bold;">● 离线</span>';
+      const statusText = isOnline
+        ? (isAlert
+          ? '<span style="color:#ff4d4f;font-weight:bold;">● 在线预警</span>'
+          : '<span style="color:#52c41a;font-weight:bold;">● 在线</span>')
+        : '<span style="color:#8c8c8c;font-weight:bold;">● 离线</span>';
       const infoWindow = new BMapGL.InfoWindow(
         `<div style="padding:8px;line-height:1.8;font-size:13px;">
           <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">${station.name}</div>
@@ -465,14 +488,103 @@ async function loadBoundaryData() {
     const page = await listElectronicBoundaries({ pageNum: 1, pageSize: 50 });
     const list = page.list || [];
     allBoundaries.value = list;
-    clearBoundaryMarkers();
-    await Promise.all(list.map(b => addBoundaryMarker(b)));
+    await renderBoundariesFromCache();
     console.log('[MapView] 已添加电子界桩标注数量:', boundaryMarkers.length);
   } catch (e: any) {
     console.error('[MapView] 加载电子界桩失败:', e);
     // 这里不弹错误，避免影响测站地图的正常使用
   }
 }
+
+async function renderStationsFromCache() {
+  clearStationMarkers();
+  if (!showStations.value) {
+    visibleStationCount.value = 0;
+    if (selectedStation.value) {
+      selectedStation.value = null;
+      historyData.value = [];
+    }
+    return;
+  }
+  const list = onlyOnlineStations.value
+    ? allStations.value.filter(s => s.status === 1)
+    : allStations.value;
+  visibleStationCount.value = list.length;
+  if (selectedStation.value && !list.some(s => s.id === selectedStation.value?.id)) {
+    selectedStation.value = null;
+    historyData.value = [];
+  }
+  await Promise.all(list.map(s => addMarker(s)));
+}
+
+async function renderBoundariesFromCache() {
+  clearBoundaryMarkers();
+  if (!showBoundaries.value) {
+    visibleBoundaryCount.value = 0;
+    if (selectedBoundary.value) {
+      selectedBoundary.value = null;
+    }
+    return;
+  }
+  const list = onlyOnlineStations.value
+    ? allBoundaries.value.filter(b => b.status === 1)
+    : allBoundaries.value;
+  visibleBoundaryCount.value = list.length;
+  if (selectedBoundary.value && !list.some(b => b.id === selectedBoundary.value?.id)) {
+    selectedBoundary.value = null;
+  }
+  await Promise.all(list.map(b => addBoundaryMarker(b)));
+}
+
+function fitMapToVisiblePoints() {
+  if (!map || !(window as any).BMapGL) return;
+  const points: any[] = [];
+  if (showStations.value) {
+    const stationList = onlyOnlineStations.value
+      ? allStations.value.filter(s => s.status === 1)
+      : allStations.value;
+    stationList.forEach(s => {
+      if (s.lngBd09 != null && s.latBd09 != null) {
+        points.push(new BMapGL.Point(s.lngBd09, s.latBd09));
+      }
+    });
+  }
+  if (showBoundaries.value) {
+    const boundaryList = onlyOnlineStations.value
+      ? allBoundaries.value.filter(b => b.status === 1)
+      : allBoundaries.value;
+    boundaryList.forEach(b => {
+      if (b.lngBd09 != null && b.latBd09 != null) {
+        points.push(new BMapGL.Point(b.lngBd09, b.latBd09));
+      }
+    });
+  }
+  if (!points.length) return;
+  try {
+    const view = map.getViewport(points);
+    map.centerAndZoom(view.center, Math.min(view.zoom, 15));
+  } catch {}
+}
+
+function resetMapView() {
+  fitMapToVisiblePoints();
+  ElMessage.success('已重置地图视野');
+}
+
+watch(onlyOnlineStations, async () => {
+  await Promise.all([renderStationsFromCache(), renderBoundariesFromCache()]);
+  fitMapToVisiblePoints();
+});
+
+watch(showStations, async () => {
+  await renderStationsFromCache();
+  fitMapToVisiblePoints();
+});
+
+watch(showBoundaries, async () => {
+  await renderBoundariesFromCache();
+  fitMapToVisiblePoints();
+});
 
 async function addBoundaryMarker(boundary: ElectronicBoundary) {
   if (!map || !(window as any).BMapGL) return;
@@ -483,15 +595,21 @@ async function addBoundaryMarker(boundary: ElectronicBoundary) {
     return;
   }
   const point = new BMapGL.Point(lng, lat);
-  // 电子界桩使用橙色图标，与测站区分
-  const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
-    <path d="M12 0C7.6 0 4 3.6 4 8c0 5.9 8 20 8 20s8-14.1 8-20c0-4.4-3.6-8-8-8z" fill="#e6a23c" stroke="white" stroke-width="1.2"/>
-    <rect x="9" y="7" width="6" height="6" rx="1.5" fill="white"/>
+
+  // 电子界桩：在线绿色，离线灰色；中间用“菱形”区分于测站
+  const isOnline = boundary.status === 1;
+  const markerColor = getBoundaryMarkerColor(boundary);
+  const opacity = isOnline ? 1 : 0.78;
+  const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="32" viewBox="0 0 26 32">
+    <path d="M13 0C8.2 0 4.2 4 4.2 8.8c0 6.6 8.8 23.2 8.8 23.2s8.8-16.6 8.8-23.2C21.8 4 17.8 0 13 0z"
+      fill="${markerColor}" fill-opacity="${opacity}"
+      stroke="white" stroke-width="1.3"/>
+    <path d="M13 5.6 17.6 10.2 13 14.8 8.4 10.2Z" fill="white"/>
   </svg>`;
   const icon = new BMapGL.Icon(
-    `data:image/svg+xml;base64,${btoa(svgIcon)}`,
-    new BMapGL.Size(24, 28),
-    { anchor: new BMapGL.Size(12, 28) }
+    svgToDataUrl(svgIcon),
+    new BMapGL.Size(26, 32),
+    { anchor: new BMapGL.Size(13, 32) }
   );
   const marker = new BMapGL.Marker(point, { icon });
   (marker as any)._boundaryId = boundary.id;
@@ -499,11 +617,15 @@ async function addBoundaryMarker(boundary: ElectronicBoundary) {
   marker.addEventListener('mouseover', () => {
     if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
     hoverOpenTimer = window.setTimeout(() => {
+      const statusText = isOnline
+        ? '<span style="color:#52c41a;font-weight:bold;">● 在线</span>'
+        : '<span style="color:#8c8c8c;font-weight:bold;">● 离线</span>';
       const infoWindow = new BMapGL.InfoWindow(
         `<div style="padding:8px;line-height:1.8;font-size:13px;">
           <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">${boundary.name}</div>
           <div>界桩编号：${boundary.boundaryCode}</div>
           <div>设备ID：${boundary.deviceId}</div>
+          <div>状态：${statusText}</div>
           <div style="color:#999;font-size:12px;margin-top:4px;">经纬度：${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
         </div>`,
         {
@@ -560,12 +682,14 @@ onMounted(async () => {
     // 默认中心点设为中国中部，zoom 适中以便查看多个城市的测站
     const center = new BMapGL.Point(117.0, 30.5);
     map.centerAndZoom(center, 6);
+    currentZoom.value = 6;
     map.enableScrollWheelZoom(true);
     try { map.addControl(new BMapGL.ZoomControl()); } catch {}
     // 点击/拖拽/缩放时关闭气泡，防止悬停后残留
     try { map.addEventListener('click', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
     try { map.addEventListener('dragstart', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
     try { map.addEventListener('zoomstart', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
+    try { map.addEventListener('zoomend', () => { currentZoom.value = map.getZoom(); }); } catch {}
     console.info('[Map] Using Baidu Map (BMapGL)');
   } catch (e) {
     ElMessage.error('百度地图脚本加载失败，请检查网络与 AK 配置');
@@ -611,6 +735,77 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
+
+.map-toolbar {
+  position: absolute;
+  top: 88px;
+  left: 16px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  min-width: 126px;
+}
+
+.toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #303133;
+}
+
+.toolbar-meta {
+  margin-top: 6px;
+  color: #606266;
+  font-size: 12px;
+}
+
+.map-legend {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  color: #303133;
+  font-size: 12px;
+}
+
+.legend-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 20px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+}
+
+.dot-station {
+  border-radius: 50%;
+}
+
+.dot-boundary {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.dot-alert { background: #f56c6c; }
+.dot-online { background: #409eff; }
+.dot-offline { background: #8c8c8c; }
+.dot-boundary-online { background: #67c23a; }
+.dot-boundary-offline { background: #8c8c8c; }
 
 .map-container {
   width: 100%;
@@ -714,6 +909,19 @@ onBeforeUnmount(() => {
     width: 100%;
     max-width: 100%;
     height: 400px;
+  }
+
+  .map-toolbar {
+    top: 78px;
+    left: 10px;
+    min-width: 112px;
+    padding: 8px;
+  }
+
+  .map-legend {
+    top: 10px;
+    right: 10px;
+    padding: 8px 10px;
   }
 }
 </style>
