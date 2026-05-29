@@ -332,6 +332,7 @@ function destroyMap() {
 function ensureMap() {
   if (mapInstance || !mapEl.value) return;
   mapInstance = new BMapGL.Map(mapEl.value);
+  try { mapInstance.setMapType((window as any).BMAP_SATELLITE_MAP || (BMapGL as any).BMAP_SATELLITE_MAP); } catch {}
   mapInstance.enableScrollWheelZoom(true);
   const center = new BMapGL.Point(113.001, 28.231);
   mapInstance.centerAndZoom(center, 12);
@@ -355,20 +356,22 @@ function renderMapMarkers() {
     if (marker.lngBd09 === undefined || marker.latBd09 === undefined) return;
     const point = new BMapGL.Point(marker.lngBd09, marker.latBd09);
     points.push(point);
-    const overlay = new BMapGL.Marker(point);
-    const label = new BMapGL.Label(
-      `${marker.stationName}(${statusLabel(marker.displayStatus)})`,
-      { offset: new BMapGL.Size(12, -18) }
+    const color = marker.displayStatus === 'HAS_TERMITE'
+      ? '#ff3b30'
+      : marker.displayStatus === 'NO_TERMITE'
+        ? '#13a10e'
+        : '#9aa0a6';
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32">
+      <path d="M12 0C7.2 0 3.2 4 3.2 8.8c0 6.6 8.8 23.2 8.8 23.2s8.8-16.6 8.8-23.2C20.8 4 16.8 0 12 0z"
+        fill="${color}" stroke="white" stroke-width="1.4"/>
+      <circle cx="12" cy="9" r="3.2" fill="white"/>
+    </svg>`;
+    const icon = new BMapGL.Icon(
+      `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgIcon)}`,
+      new BMapGL.Size(24, 32),
+      { anchor: new BMapGL.Size(12, 32) }
     );
-    label.setStyle({
-      color: '#1f2a44',
-      background: 'rgba(255,255,255,0.9)',
-      border: '1px solid #dfe6f3',
-      borderRadius: '4px',
-      padding: '2px 6px',
-      fontSize: '12px'
-    });
-    overlay.setLabel(label);
+    const overlay = new BMapGL.Marker(point, { icon });
     mapInstance.addOverlay(overlay);
     mapOverlays.push(overlay);
   });

@@ -380,11 +380,11 @@ const wuhanBoundaryOnlineMapData = ref<BoundaryMapPoint[]>([]);
 const wuhanBoundaryOfflineMapData = ref<BoundaryMapPoint[]>([]);
 
 function getStationLngLat(station: TermiteStation): [number, number] | null {
-  if (typeof station.lngWgs84 === 'number' && typeof station.latWgs84 === 'number') {
-    return [station.lngWgs84, station.latWgs84];
-  }
   if (typeof station.lngBd09 === 'number' && typeof station.latBd09 === 'number') {
     return [station.lngBd09, station.latBd09];
+  }
+  if (typeof station.lngWgs84 === 'number' && typeof station.latWgs84 === 'number') {
+    return [station.lngWgs84, station.latWgs84];
   }
   return null;
 }
@@ -857,47 +857,17 @@ async function loadAlerts() {
     stats.stationNoData = stations.filter(s => s.termiteStatus === undefined).length;
     rebuildDashboardMapPoints(stations);
     
-    // 预警列表保持为空或后续单独接口加载（避免阻塞统计）
-    // 为了演示效果，填充一些编造的测试数据
-    const mockAlerts: StationAlert[] = [
-      {
-        stationId: 1,
-        stationCode: "WH-STA-001",
-        name: "江汉区沿江测站",
-        alertId: 1001,
-        alertTime: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        alertDesc: "检测到白蚁活动迹象，活跃度指数超过阈值",
-        handleStatus: 0
-      },
-      {
-        stationId: 2,
-        stationCode: "WH-STA-005",
-        name: "洪山区南湖测站",
-        alertId: 1002,
-        alertTime: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-        alertDesc: "诱饵被大量消耗，建议尽快补充诱饵",
-        handleStatus: 0
-      },
-      {
-        stationId: 3,
-        stationCode: "WH-STA-012",
-        name: "青山古树群测站",
-        alertId: 1003,
-        alertTime: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-        alertDesc: "设备电压过低（<15%），需更换电池",
-        handleStatus: 1
-      },
-      {
-        stationId: 4,
-        stationCode: "WH-STA-024",
-        name: "武昌江滩公园点",
-        alertId: 1004,
-        alertTime: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        alertDesc: "传感器无法连接，设备可能已离线或损坏",
-        handleStatus: 0
-      }
-    ];
-    stationAlerts.value = mockAlerts;
+    // 预警列表与测站数据保持一致：仅从有白蚁的测站中生成
+    const alertStations = stations.filter(s => s.termiteStatus === 1).slice(0, 6);
+    stationAlerts.value = alertStations.map((s, idx) => ({
+      stationId: s.id,
+      stationCode: s.stationCode,
+      name: s.name,
+      alertId: 1000 + s.id,
+      alertTime: s.updateTime || s.createTime || new Date(Date.now() - idx * 3600_000).toISOString(),
+      alertDesc: '检测到白蚁活动迹象',
+      handleStatus: idx < 2 ? 0 : 1
+    }));
     
     ElMessage.success('数据已刷新');
   } catch (e: any) {

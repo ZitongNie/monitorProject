@@ -1,4 +1,5 @@
 import api from './api';
+import { getMockReservoirStations } from './termiteReservoirs';
 
 // WGS84 → GCJ-02 转换（用于模拟后端坐标转换）
 function wgs84ToGcj02(lng: number, lat: number) {
@@ -162,83 +163,40 @@ async function request<T>(promise: Promise<any>): Promise<T> {
   return body.data;
 }
 
-// --- Mock 数据 ---
-const MOCK_KEY = 'mock_termiteStations_v2';
+// --- Mock 数据（与水库白蚁监测保持一致） ---
+const MOCK_KEY = 'mock_termiteStations_reservoir_v1';
+function buildMockListFromReservoirs(): TermiteStation[] {
+  const now = new Date().toISOString();
+  return getMockReservoirStations().map((st) => ({
+    id: st.stationId,
+    stationCode: st.stationCode,
+    name: st.stationName,
+    rtuid: st.rtuid,
+    reservoirCode: st.reservoirCode,
+    password: '123456',
+    address: `${st.provinceName}${st.cityName}${st.stationName}`,
+    contactPerson: '',
+    contactPhone: '',
+    status: st.status,
+    termiteStatus: st.termiteStatus ?? undefined,
+    createTime: st.latestReportTime || now,
+    updateTime: st.latestReportTime || now,
+    lngWgs84: st.lngWgs84,
+    latWgs84: st.latWgs84,
+    lngBd09: st.lngBd09,
+    latBd09: st.latBd09,
+    initLngWgs84: st.lngWgs84,
+    initLatWgs84: st.latWgs84,
+    initLngBd09: st.lngBd09,
+    initLatBd09: st.latBd09
+  }));
+}
 function getMockList(): TermiteStation[] {
-  let existing: TermiteStation[] | null = null;
   try {
     const raw = localStorage.getItem(MOCK_KEY);
-    if (raw) existing = JSON.parse(raw);
+    if (raw) return JSON.parse(raw);
   } catch {}
-
-  // 种子数据：使用真实 WGS84 坐标并转换为 BD09（湖北省内均匀分布）
-  const createStation = (
-    id: number,
-    code: string,
-    name: string,
-    rtuid: string,
-    reservoirCode: string,
-    wgs84Lng: number,
-    wgs84Lat: number,
-    address: string,
-    person: string,
-    phone: string,
-    status: 0 | 1,
-    termiteStatus?: 0 | 1
-  ) => {
-    const { lng: gcjLng, lat: gcjLat } = wgs84ToGcj02(wgs84Lng, wgs84Lat);
-    const { lng: bdLng, lat: bdLat } = gcj02ToBd09(gcjLng, gcjLat);
-    // termiteStatus：若显式提供则使用；否则默认按在线/离线概率生成
-    const ts: 0|1 = termiteStatus !== undefined
-      ? termiteStatus
-      : (Math.random() > (status === 1 ? 0.6 : 0.8) ? 1 : 0);
-    return { id, stationCode: code, name, rtuid, reservoirCode, password: '1234', address, contactPerson: person, contactPhone: phone, status, termiteStatus: ts, createTime: new Date().toISOString(), updateTime: new Date().toISOString(), lngWgs84: wgs84Lng, latWgs84: wgs84Lat, lngBd09: bdLng, latBd09: bdLat, initLngWgs84: wgs84Lng, initLatWgs84: wgs84Lat, initLngBd09: bdLng, initLatBd09: bdLat };
-  };
-  
-  const seed: TermiteStation[] = [
-    // 武汉（10个点位）
-    createStation(101, 'BYZ-0001', '白蚁监测站-江汉区001', '6666666601', '1200000001', 114.305278, 30.593099, '湖北省武汉市江汉区民权路', '张三', '13900000001', 1, 1),
-    createStation(102, 'BYZ-0002', '白蚁监测站-硚口区002', '6666666602', '1200000002', 114.315278, 30.603099, '湖北省武汉市硚口区解放大道', '李四', '13900000002', 1, 1),
-    createStation(103, 'BYZ-0003', '白蚁监测站-江岸区003', '6666666603', '1200000003', 114.295000, 30.605000, '湖北省武汉市江岸区黄浦大街', '王五', '13900000003', 0, 0),
-    createStation(104, 'BYZ-0004', '白蚁监测站-武昌区004', '6666666604', '1200000004', 114.315000, 30.585000, '湖北省武汉市武昌区中南路', '赵六', '13900000004', 1, 1),
-    createStation(105, 'BYZ-0005', '白蚁监测站-洪山区005', '6666666605', '1200000005', 114.340000, 30.570000, '湖北省武汉市洪山区珞狮路', '钱七', '13900000005', 0, 0),
-    createStation(106, 'BYZ-0006', '白蚁监测站-汉阳区006', '6666666606', '1200000006', 114.270000, 30.560000, '湖北省武汉市汉阳区汉阳大道', '孙八', '13900000006', 1, 1),
-    createStation(107, 'BYZ-0007', '白蚁监测站-青山区007', '6666666607', '1200000007', 114.390000, 30.640000, '湖北省武汉市青山区建设一路', '周九', '13900000007', 1, 1),
-    createStation(108, 'BYZ-0008', '白蚁监测站-东湖高新008', '6666666608', '1200000008', 114.385000, 30.560000, '湖北省武汉市东湖新技术开发区光谷大道', '吴十', '13900000008', 0, 0),
-    createStation(109, 'BYZ-0009', '白蚁监测站-蔡甸区009', '6666666609', '1200000009', 114.030000, 30.580000, '湖北省武汉市蔡甸区蔡甸大街', '郑十一', '13900000009', 1, 1),
-    // 无数据示例：不传 termiteStatus
-    createStation(110, 'BYZ-0010', '白蚁监测站-江夏区010', '6666666610', '1200000010', 114.320000, 30.380000, '湖北省武汉市江夏区纸坊大街', '冯十二', '13900000010', 0, undefined),
-
-    // 湖北其他地市（10个点位，均匀分布）
-    createStation(111, 'BYZ-0011', '白蚁监测站-黄石011', '6666666611', '1200000011', 115.038000, 30.200000, '湖北省黄石市黄石港区磁湖路', '周十三', '13900000011', 1, 1),
-    createStation(112, 'BYZ-0012', '白蚁监测站-十堰012', '6666666612', '1200000012', 110.799000, 32.629000, '湖北省十堰市茅箭区人民路', '吴十四', '13900000012', 0, 0),
-    createStation(113, 'BYZ-0013', '白蚁监测站-宜昌013', '6666666613', '1200000013', 111.286000, 30.692000, '湖北省宜昌市西陵区沿江大道', '郑十五', '13900000013', 1, 0),
-    createStation(114, 'BYZ-0014', '白蚁监测站-襄阳014', '6666666614', '1200000014', 112.144000, 32.042000, '湖北省襄阳市襄城区檀溪路', '王十六', '13900000014', 1, 1),
-    createStation(115, 'BYZ-0015', '白蚁监测站-荆门015', '6666666615', '1200000015', 112.204000, 31.035000, '湖北省荆门市掇刀区象山大道', '李十七', '13900000015', 0, 0),
-    createStation(116, 'BYZ-0016', '白蚁监测站-孝感016', '6666666616', '1200000016', 113.917000, 30.924000, '湖北省孝感市孝南区交通大道', '陈十八', '13900000016', 1, 0),
-    createStation(117, 'BYZ-0017', '白蚁监测站-荆州017', '6666666617', '1200000017', 112.240000, 30.334000, '湖北省荆州市沙市区北京路', '赵十九', '13900000017', 1, 1),
-    createStation(118, 'BYZ-0018', '白蚁监测站-黄冈018', '6666666618', '1200000018', 114.872000, 30.453000, '湖北省黄冈市黄州区赤壁大道', '孙二十', '13900000018', 0, 0),
-    createStation(119, 'BYZ-0019', '白蚁监测站-恩施019', '6666666619', '1200000019', 109.488000, 30.272000, '湖北省恩施市舞阳大道', '钱二一', '13900000019', 1, 0),
-    createStation(120, 'BYZ-0020', '白蚁监测站-神农架020', '6666666620', '1200000020', 110.671000, 31.744000, '湖北省神农架林区松柏镇', '周二二', '13900000020', 0, 0),
-  ];
-
-  const TARGET_COUNT = 20;
-  if (existing && Array.isArray(existing)) {
-    if (existing.length >= TARGET_COUNT) return existing;
-    const codes = new Set(existing.map(s => s.stationCode));
-    const merged = existing.slice();
-    for (const st of seed) {
-      if (merged.length >= TARGET_COUNT) break;
-      if (codes.has(st.stationCode)) continue;
-      merged.push(st);
-      codes.add(st.stationCode);
-    }
-    setMockList(merged);
-    return merged;
-  }
-
-  setMockList(seed);
-  return seed;
+  return buildMockListFromReservoirs();
 }
 function setMockList(list: TermiteStation[]) { localStorage.setItem(MOCK_KEY, JSON.stringify(list)); }
 
