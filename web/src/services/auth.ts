@@ -1,4 +1,4 @@
-import api from './api';
+import { rootApi } from './api';
 import { useAuthStore } from '../store/auth';
 
 type LoginResp = {
@@ -37,7 +37,7 @@ export async function login(username: string, password: string) {
     return;
   }
 
-  const resp = await api.post<LoginResp>('/sys/auth/login', { username, password });
+  const resp = await rootApi.post<LoginResp>('/sys/auth/login', { username, password });
   const body = resp.data as any;
 
   // 兼容两种风格：包装器与旧 Mock
@@ -70,7 +70,7 @@ export async function logout() {
   const token = auth.token;
   try {
     if (token) {
-      await api.post('/sys/auth/logout', { token });
+      await rootApi.post('/sys/auth/logout', { token });
     }
   } catch {}
   auth.logout();
@@ -98,7 +98,7 @@ export async function register(payload: { username: string; password: string; re
     setMockUsers([...users, newUser]);
     return { code: 200, message: 'success', data: null };
   }
-  const { data } = await api.post('/sys/auth/register', payload);
+  const { data } = await rootApi.post('/sys/auth/register', payload);
   if (typeof (data?.code) === 'number' && data.code !== 200) {
     const err: any = new Error(data?.message || '注册失败');
     err.response = { data };

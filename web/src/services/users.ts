@@ -1,4 +1,4 @@
-import api from './api';
+import { rootApi } from './api';
 
 export interface User {
   id: number;
@@ -92,7 +92,7 @@ export async function listUsers(params?: { username?: string; role?: 'admin'|'us
     pageNum: params?.pageNum ?? 1,
     pageSize: params?.pageSize ?? 50
   };
-  const resp = await api.get<Wrapper<{ total: number; pages: number; pageNum: number; pageSize: number; list: any[] }>>('/sys/user/list', { params: query });
+  const resp = await rootApi.get<Wrapper<{ total: number; pages: number; pageNum: number; pageSize: number; list: any[] }>>('/sys/user/list', { params: query });
   const body = resp.data;
   if (typeof body?.code === 'number' && body.code !== 200) throw wrap(body);
   const list = body.data?.list || [];
@@ -135,7 +135,7 @@ export async function getUserDetail(userId: number): Promise<User> {
     };
   }
 
-  const resp = await api.get<Wrapper<any>>('/sys/user/detail', { params: { userId } });
+  const resp = await rootApi.get<Wrapper<any>>('/sys/user/detail', { params: { userId } });
   const body = resp.data;
   if (typeof body?.code === 'number' && body.code !== 200) throw wrap(body);
   const u = body.data;
@@ -182,7 +182,7 @@ export async function createUser(payload: { username: string; password: string; 
     phone: payload.phone,
     status: payload.status ?? 1
   };
-  const resp = await api.post<Wrapper<null>>('/sys/user/add', body);
+  const resp = await rootApi.post<Wrapper<null>>('/sys/user/add', body);
   const data = resp.data;
   if (data.code !== 200) throw wrap(data);
 }
@@ -218,7 +218,7 @@ export async function updateUser(id: number, payload: { password?: string; role?
   if (payload.realName !== undefined) body.realName = payload.realName;
   if (payload.phone !== undefined) body.phone = payload.phone;
   if (payload.status !== undefined) body.status = payload.status;
-  const resp = await api.put<Wrapper<null>>('/sys/user/update', body);
+  const resp = await rootApi.put<Wrapper<null>>('/sys/user/update', body);
   const data = resp.data; if (data.code !== 200) throw wrap(data);
 }
 
@@ -236,7 +236,7 @@ export async function deleteUser(id: number) {
     return;
   }
 
-  const resp = await api.delete<Wrapper<null>>('/sys/user/delete', { params: { userId: id } });
+  const resp = await rootApi.delete<Wrapper<null>>('/sys/user/delete', { params: { userId: id } });
   const data = resp.data; if (data.code !== 200) throw wrap(data);
 }
 

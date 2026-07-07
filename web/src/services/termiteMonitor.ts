@@ -16,6 +16,44 @@ async function request<T>(promise: Promise<any>): Promise<T> {
   return body.data as T;
 }
 
+export interface TermiteMonitorHistoryQuery {
+  stationId: number;
+  startTime?: string;
+  endTime?: string;
+  termiteStatus?: 0 | 1;
+  isAlert?: 0 | 1;
+  pageNo?: number;
+  pageSize?: number;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface TermiteMonitorHistoryRecord {
+  id: number;
+  stationId: number;
+  reportTime: string;
+  lngWgs84?: number;
+  latWgs84?: number;
+  lngBd09?: number;
+  latBd09?: number;
+  termiteStatus?: 0 | 1;
+  devicePower?: number;
+  pointOrder?: string;
+  signalStrength?: number;
+  isAlert?: 0 | 1;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface TermiteMonitorHistoryResponse {
+  records: TermiteMonitorHistoryRecord[];
+  pageNo: number;
+  pageSize: number;
+  total: number;
+  pages: number;
+  sortBy?: string | null;
+  order?: string | null;
+}
+
 // 7. 单站点安全/预警状态变化曲线
 export type TermiteBucket = 'hour' | 'day';
 
@@ -48,9 +86,7 @@ export interface TermiteAlertBarQuery {
   stationIds?: string; // "101,102" 形式
   startTime?: string;
   endTime?: string;
-  sortBy?: TermiteSortBy;
-  order?: TermiteOrder;
-  topN?: number; // 1..100，默认20
+  limit?: number; // 1..500，默认100
 }
 
 export interface TermiteAlertBarItem {
@@ -64,9 +100,9 @@ export interface TermiteAlertBarItem {
 
 export interface TermiteAlertBarResponse {
   items: TermiteAlertBarItem[];
-  sortBy: TermiteSortBy;
-  order: TermiteOrder;
-  topN: number;
+  sortBy?: TermiteSortBy;
+  order?: TermiteOrder;
+  topN?: number;
   startTime?: string;
   endTime?: string;
 }
@@ -87,7 +123,68 @@ export interface TermiteAlertPieResponse {
   endTime?: string;
 }
 
+interface BackendTermiteAlertBarItem {
+  deviceId: number;
+  deviceCode: string;
+  deviceName: string;
+  totalCount: number;
+  safeCount: number;
+  alertCount: number;
+}
+
+interface BackendTermiteAlertBarResponse {
+  items: BackendTermiteAlertBarItem[];
+  startTime?: string;
+  endTime?: string;
+}
+
+interface BackendTermiteAlertPieItem {
+  alertStatus: 0 | 1;
+  label: string;
+  deviceCount: number;
+}
+
+interface BackendTermiteAlertPieResponse {
+  items: BackendTermiteAlertPieItem[];
+  startTime?: string;
+  endTime?: string;
+}
+
 // --- Mock 实现 ---
+
+function createMockHistory(q: TermiteMonitorHistoryQuery): TermiteMonitorHistoryResponse {
+  const pageNo = q.pageNo ?? 1;
+  const pageSize = q.pageSize ?? 10;
+  const total = pageSize;
+  const now = Date.now();
+  const records: TermiteMonitorHistoryRecord[] = [];
+  for (let i = 0; i < total; i++) {
+    const reportTime = new Date(now - (total - i) * 2 * 3600_000).toISOString();
+    const termiteStatus = (i + q.stationId) % 3 === 0 ? 1 : 0;
+    const isAlert = termiteStatus === 1 ? 1 : 0;
+    records.push({
+      id: q.stationId * 1000 + i + 1,
+      stationId: q.stationId,
+      reportTime,
+      termiteStatus,
+      devicePower: 85 - (i % 5),
+      pointOrder: '1-1',
+      signalStrength: 25 + (i % 5),
+      isAlert,
+      createTime: reportTime,
+      updateTime: reportTime
+    });
+  }
+  return {
+    records,
+    pageNo,
+    pageSize,
+    total,
+    pages: 1,
+    sortBy: null,
+    order: q.sortOrder ?? 'asc'
+  };
+}
 
 function createMockCurve(q: TermiteAlertCurveQuery): TermiteAlertCurveResponse {
   const bucket: TermiteBucket = q.bucket || 'day';
@@ -129,14 +226,14 @@ function createMockBar(q: TermiteAlertBarQuery): TermiteAlertBarResponse {
       alertCount: alert
     };
   });
-  const sortBy: TermiteSortBy = q.sortBy || 'alertCount';
-  const order: TermiteOrder = q.order || 'desc';
+  const sortBy: TermiteSortBy = 'alertCount';
+  const order: TermiteOrder = 'desc';
   items.sort((a, b) => {
     const av = a[sortBy];
     const bv = b[sortBy];
-    return order === 'asc' ? av - bv : bv - av;
+    return bv - av;
   });
-  const topN = Math.min(Math.max(q.topN ?? 20, 1), 100);
+  const topN = Math.min(Math.max(q.limit ?? 20, 1), 100);
   return {
     items: items.slice(0, topN),
     sortBy,
@@ -170,6 +267,19 @@ function createMockPie(q: TermiteAlertPieQuery): TermiteAlertPieResponse {
 
 // --- 对外 API 封装 ---
 
+export async function fetchTermiteMonitorHistory(q: TermiteMonitorHistoryQuery): Promise<TermiteMonitorHistoryResponse> {
+  if (isMock()) {
+    return createMockHistory(q);
+  }
+  const params: any = { ...q };
+  if (!params.pageNo) params.pageNo = 1;
+  if (!params.pageSize) params.pageSize = 20;
+  if (!params.sortOrder) params.sortOrder = 'asc';
+  return await request<TermiteMonitorHistoryResponse>(
+    api.get('/termite-monitor/history', { params })
+  );
+}
+
 export async function fetchTermiteAlertCurve(q: TermiteAlertCurveQuery): Promise<TermiteAlertCurveResponse> {
   if (isMock()) {
     return createMockCurve(q);
@@ -187,9 +297,21 @@ export async function fetchTermiteAlertBar(q: TermiteAlertBarQuery): Promise<Ter
     return createMockBar(q);
   }
   const params: any = { ...q };
-  return await request<TermiteAlertBarResponse>(
-    api.get('/termite-monitor/alert-bar', { params })
+  const data = await request<BackendTermiteAlertBarResponse>(
+    api.get('/termite-monitor/multi-device-alert-stats', { params })
   );
+  return {
+    items: (data.items || []).map((item) => ({
+      stationId: item.deviceId,
+      stationCode: item.deviceCode,
+      name: item.deviceName,
+      totalCount: item.totalCount,
+      safeCount: item.safeCount,
+      alertCount: item.alertCount
+    })),
+    startTime: data.startTime,
+    endTime: data.endTime
+  };
 }
 
 export async function fetchTermiteAlertPie(q: TermiteAlertPieQuery): Promise<TermiteAlertPieResponse> {
@@ -197,7 +319,20 @@ export async function fetchTermiteAlertPie(q: TermiteAlertPieQuery): Promise<Ter
     return createMockPie(q);
   }
   const params: any = { ...q };
-  return await request<TermiteAlertPieResponse>(
-    api.get('/termite-monitor/alert-pie', { params })
+  const data = await request<BackendTermiteAlertPieResponse>(
+    api.get('/termite-monitor/alert-distribution', { params })
   );
+  const items = data.items || [];
+  const alertedItem = items.find((item) => item.alertStatus === 1);
+  const safeItem = items.find((item) => item.alertStatus === 0);
+  const alertedCount = alertedItem?.deviceCount || 0;
+  const safeCount = safeItem?.deviceCount || 0;
+  return {
+    totalStations: alertedCount + safeCount,
+    alertedCount,
+    safeCount,
+    alertedStationIds: [],
+    startTime: data.startTime,
+    endTime: data.endTime
+  };
 }

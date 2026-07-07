@@ -79,7 +79,7 @@
             <div class="chart">
               <template v-if="stationAlerts.length">
                 <div class="alert-scroll">
-                  <div v-for="row in stationAlerts" :key="row.alertId" class="alert-card">
+                  <div v-for="row in stationAlerts" :key="row.alertKey" class="alert-card">
                     <div class="alert-item">
                       <div class="alert-line1">
                         <span class="alert-name">{{ row.name }}</span>
@@ -96,7 +96,7 @@
                       <div class="alert-actions">
                         <el-space>
                           <el-button type="primary" plain size="small" @click="viewStationDetail(row.stationId)">查看详情</el-button>
-                          <el-button v-if="row.handleStatus === 0" type="success" plain size="small" @click="handleAlert(row)">已处理</el-button>
+                          <el-button v-if="row.handleStatus === 0" type="success" plain size="small" :disabled="row.alertId == null" @click="handleAlert(row)">已处理</el-button>
                         </el-space>
                       </div>
                     </div>
@@ -227,7 +227,7 @@
             <div class="chart">
               <template v-if="boundaryAlerts.length">
                 <div class="alert-scroll">
-                  <div v-for="row in boundaryAlerts" :key="row.alertId" class="alert-card">
+                  <div v-for="row in boundaryAlerts" :key="row.alertKey" class="alert-card">
                     <div class="alert-item">
                       <div class="alert-line1">
                         <span class="alert-name">{{ row.name }}</span>
@@ -261,8 +261,17 @@
 import { onMounted, onBeforeUnmount, ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Odometer, Warning, CircleCheck, QuestionFilled } from '@element-plus/icons-vue';
-import { listTermiteStations, type TermiteStation } from '@/services/termiteStations';
-import { listElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
+import { listTermiteStations, queryTermiteRealtime, type AlertDTO, type TermiteStation } from '@/services/termiteStations';
+import {
+  listElectronicBoundaries,
+  queryBoundaryRealtime,
+  getElectronicBoundaryDashboardOverview,
+  getElectronicBoundaryDashboardWuhanPoints,
+  type BoundaryAlertDTO,
+  type BoundaryDashboardAlertCardDTO,
+  type BoundaryDashboardMapPointDTO,
+  type ElectronicBoundary
+} from '@/services/electronicBoundaries';
 import { updateAlertStatus } from '@/services/alerts';
 import { use } from 'echarts/core';
 import * as echarts from 'echarts/core';
@@ -323,6 +332,9 @@ async function handleMapSwitch(target: 'china' | 'hubei' | 'wuhan') {
     loading.value = false;
   }
   currentMap.value = target;
+  if (target === 'wuhan') {
+    void ensureWuhanBoundaryMapPoints();
+  }
 }
 
 // 地图点击下钻逻辑
@@ -354,6 +366,17 @@ interface BoundaryMapPoint {
   boundaryOffline: number;
 }
 
+interface BoundaryMapCachePayload {
+  cachedAt: number;
+  centerBoundaryOnlineMapData: BoundaryMapPoint[];
+  centerBoundaryOfflineMapData: BoundaryMapPoint[];
+  hubeiBoundaryOnlineMapData: BoundaryMapPoint[];
+  hubeiBoundaryOfflineMapData: BoundaryMapPoint[];
+  wuhanBoundaryOnlineMapData: BoundaryMapPoint[];
+  wuhanBoundaryOfflineMapData: BoundaryMapPoint[];
+  wuhanBoundaryPointsLoaded?: boolean;
+}
+
 const defaultChinaMapData: MapPoint[] = [
   { name: '湖北省', value: [114.305393, 30.593099, 160], stationCount: 8, termiteCount: 5, noTermiteCount: 2, noDataCount: 1 }
 ];
@@ -378,6 +401,45 @@ const hubeiBoundaryOnlineMapData = ref<BoundaryMapPoint[]>([]);
 const hubeiBoundaryOfflineMapData = ref<BoundaryMapPoint[]>([]);
 const wuhanBoundaryOnlineMapData = ref<BoundaryMapPoint[]>([]);
 const wuhanBoundaryOfflineMapData = ref<BoundaryMapPoint[]>([]);
+const wuhanBoundaryPointsLoaded = ref(false);
+const wuhanBoundaryPointsLoading = ref(false);
+
+function mapDashboardBoundaryPoint(point: BoundaryDashboardMapPointDTO): BoundaryMapPoint {
+  return {
+    name: point.name,
+    value: [point.lng, point.lat, 60],
+    boundaryTotal: point.boundaryTotal,
+    boundaryOnline: point.boundaryOnline,
+    boundaryOffline: point.boundaryOffline
+  };
+}
+
+function applyBoundaryOverviewMapData(overview: {
+  chinaOnlinePoints: BoundaryDashboardMapPointDTO[];
+  chinaOfflinePoints: BoundaryDashboardMapPointDTO[];
+  hubeiOnlinePoints: BoundaryDashboardMapPointDTO[];
+  hubeiOfflinePoints: BoundaryDashboardMapPointDTO[];
+}) {
+  centerBoundaryOnlineMapData.value = (overview.chinaOnlinePoints || []).map(mapDashboardBoundaryPoint);
+  centerBoundaryOfflineMapData.value = (overview.chinaOfflinePoints || []).map(mapDashboardBoundaryPoint);
+  hubeiBoundaryOnlineMapData.value = (overview.hubeiOnlinePoints || []).map(mapDashboardBoundaryPoint);
+  hubeiBoundaryOfflineMapData.value = (overview.hubeiOfflinePoints || []).map(mapDashboardBoundaryPoint);
+}
+
+function mapDashboardBoundaryAlerts(alerts: BoundaryDashboardAlertCardDTO[]): BoundaryAlert[] {
+  return (alerts || [])
+    .map((alert, index) => ({
+      boundaryId: alert.boundaryId,
+      boundaryCode: alert.boundaryCode,
+      name: alert.name,
+      alertKey: buildAlertKey('boundary', alert.boundaryId, alert.alertId, alert.alertTime, index),
+      alertId: alert.alertId,
+      alertTime: alert.alertTime,
+      alertDesc: alert.alertDesc || '电子界桩监测预警',
+      handleStatus: alert.handleStatus
+    }))
+    .sort(sortByAlertTimeDesc);
+}
 
 function getStationLngLat(station: TermiteStation): [number, number] | null {
   if (typeof station.lngBd09 === 'number' && typeof station.latBd09 === 'number') {
@@ -550,6 +612,51 @@ function rebuildDashboardBoundaryMapPoints(boundaries: ElectronicBoundary[]) {
   wuhanBoundaryOfflineMapData.value = wuhanBoundaries.filter(p => p.boundaryOffline > 0);
 }
 
+function buildBoundaryMapCachePayload(): BoundaryMapCachePayload {
+  return {
+    cachedAt: Date.now(),
+    centerBoundaryOnlineMapData: centerBoundaryOnlineMapData.value,
+    centerBoundaryOfflineMapData: centerBoundaryOfflineMapData.value,
+    hubeiBoundaryOnlineMapData: hubeiBoundaryOnlineMapData.value,
+    hubeiBoundaryOfflineMapData: hubeiBoundaryOfflineMapData.value,
+    wuhanBoundaryOnlineMapData: wuhanBoundaryOnlineMapData.value,
+    wuhanBoundaryOfflineMapData: wuhanBoundaryOfflineMapData.value,
+    wuhanBoundaryPointsLoaded: wuhanBoundaryPointsLoaded.value
+  };
+}
+
+function applyBoundaryMapCachePayload(payload: BoundaryMapCachePayload) {
+  centerBoundaryOnlineMapData.value = payload.centerBoundaryOnlineMapData || [];
+  centerBoundaryOfflineMapData.value = payload.centerBoundaryOfflineMapData || [];
+  hubeiBoundaryOnlineMapData.value = payload.hubeiBoundaryOnlineMapData || [];
+  hubeiBoundaryOfflineMapData.value = payload.hubeiBoundaryOfflineMapData || [];
+  wuhanBoundaryOnlineMapData.value = payload.wuhanBoundaryOnlineMapData || [];
+  wuhanBoundaryOfflineMapData.value = payload.wuhanBoundaryOfflineMapData || [];
+  wuhanBoundaryPointsLoaded.value = !!payload.wuhanBoundaryPointsLoaded;
+}
+
+function restoreBoundaryMapCache(): boolean {
+  try {
+    const raw = sessionStorage.getItem(BOUNDARY_MAP_CACHE_KEY);
+    if (!raw) return false;
+    const payload = JSON.parse(raw) as BoundaryMapCachePayload;
+    if (!payload?.cachedAt) return false;
+    if (Date.now() - payload.cachedAt > BOUNDARY_MAP_CACHE_TTL_MS) return false;
+    applyBoundaryMapCachePayload(payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function persistBoundaryMapCache() {
+  try {
+    sessionStorage.setItem(BOUNDARY_MAP_CACHE_KEY, JSON.stringify(buildBoundaryMapCachePayload()));
+  } catch {
+    // ignore cache write failure
+  }
+}
+
 function rebuildDashboardMapPoints(stations: TermiteStation[]) {
   const withCoord = stations
     .map(station => ({ station, lngLat: getStationLngLat(station) }))
@@ -694,7 +801,8 @@ interface StationAlert {
   stationId: number;
   stationCode: string;
   name: string;
-  alertId: number;
+  alertKey: string;
+  alertId: number | null;
   alertTime: string;
   alertDesc: string;
   handleStatus: 0 | 1;
@@ -702,37 +810,24 @@ interface StationAlert {
 
 const stationAlerts = ref<StationAlert[]>([]);
 
-// 界桩预警结构和数据
 interface BoundaryAlert {
   boundaryId: number;
   boundaryCode: string;
   name: string;
-  alertId: number;
+  alertKey: string;
+  alertId: number | null;
   alertTime: string;
   alertDesc: string;
   handleStatus: 0 | 1;
 }
 
-const boundaryAlerts = ref<BoundaryAlert[]>([
-  {
-    boundaryId: 101,
-    boundaryCode: "EB-WH-001",
-    name: "新洲1号界桩",
-    alertId: 2001,
-    alertTime: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    alertDesc: "界桩发生位移或倾斜异常，疑似受到外力碰撞",
-    handleStatus: 0
-  },
-  {
-    boundaryId: 102,
-    boundaryCode: "EB-WH-045",
-    name: "蔡甸边界测点",
-    alertId: 2002,
-    alertTime: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
-    alertDesc: "设备离线",
-    handleStatus: 1
-  }
-]);
+const boundaryAlerts = ref<BoundaryAlert[]>([]);
+const QUERY_PAGE_SIZE = 100;
+const PAGE_FETCH_CONCURRENCY = 6;
+const ALERT_SCAN_LIMIT = 12;
+const ALERT_DISPLAY_LIMIT = 6;
+const BOUNDARY_MAP_CACHE_KEY = 'dashboard_boundary_map_cache_v2';
+const BOUNDARY_MAP_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // 饼图配置
 const termitePieOptions = computed(() => ({
@@ -808,7 +903,300 @@ function viewStationDetail(id: number) {
   router.push(`/station-detail?id=${id}`);
 }
 
+function getTimeValue(value?: string): number {
+  const time = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function buildAlertKey(prefix: string, deviceId: number, alertId: number | null, alertTime: string, index: number): string {
+  return `${prefix}-${deviceId}-${alertId ?? 'null'}-${alertTime || 'no-time'}-${index}`;
+}
+
+function sortByLatestEntityTime<T extends { updateTime?: string; createTime?: string }>(a: T, b: T): number {
+  return getTimeValue(b.updateTime || b.createTime) - getTimeValue(a.updateTime || a.createTime);
+}
+
+function sortByAlertTimeDesc<T extends { alertTime: string }>(a: T, b: T): number {
+  return getTimeValue(b.alertTime) - getTimeValue(a.alertTime);
+}
+
+function mapStationAlerts(station: TermiteStation, alerts: AlertDTO[]): StationAlert[] {
+  return alerts.map((alert, index) => ({
+    stationId: station.id,
+    stationCode: station.stationCode,
+    name: station.name,
+    alertKey: buildAlertKey('station', station.id, alert.alertId, alert.alertTime, index),
+    alertId: alert.alertId,
+    alertTime: alert.alertTime,
+    alertDesc: alert.alertDesc || alert.alertType || '检测到白蚁活动',
+    handleStatus: alert.handleStatus
+  }));
+}
+
+function mapBoundaryAlerts(boundary: ElectronicBoundary, alerts: BoundaryAlertDTO[]): BoundaryAlert[] {
+  return alerts.map((alert, index) => ({
+    boundaryId: boundary.id,
+    boundaryCode: boundary.boundaryCode,
+    name: boundary.name,
+    alertKey: buildAlertKey('boundary', boundary.id, alert.alertId, alert.alertTime, index),
+    alertId: alert.alertId,
+    alertTime: alert.alertTime,
+    alertDesc: alert.alertDesc || alert.alertType || '电子界桩监测预警',
+    handleStatus: alert.handleStatus
+  }));
+}
+
+async function fetchAllTermiteStations(): Promise<TermiteStation[]> {
+  const firstPage = await listTermiteStations({
+    pageNo: 1,
+    pageSize: QUERY_PAGE_SIZE,
+    sortBy: 'updateTime',
+    order: 'desc'
+  });
+
+  const records: TermiteStation[] = [...(firstPage.records || [])];
+  const pages = firstPage.pages || 1;
+
+  if (pages <= 1) {
+    return records;
+  }
+
+  for (let startPage = 2; startPage <= pages; startPage += PAGE_FETCH_CONCURRENCY) {
+    const pageNos = Array.from(
+      { length: Math.min(PAGE_FETCH_CONCURRENCY, pages - startPage + 1) },
+      (_, index) => startPage + index
+    );
+    const chunk = await Promise.all(
+      pageNos.map((pageNo) =>
+        listTermiteStations({
+          pageNo,
+          pageSize: QUERY_PAGE_SIZE,
+          sortBy: 'updateTime',
+          order: 'desc'
+        })
+      )
+    );
+    chunk
+      .sort((a, b) => a.pageNo - b.pageNo)
+      .forEach((page) => records.push(...(page.records || [])));
+  }
+
+  return records;
+}
+
+async function fetchAllElectronicBoundaries(): Promise<ElectronicBoundary[]> {
+  const firstPage = await listElectronicBoundaries({
+    pageNum: 1,
+    pageSize: QUERY_PAGE_SIZE,
+    orderBy: 'update_time',
+    order: 'desc'
+  });
+
+  const records: ElectronicBoundary[] = [...(firstPage.list || [])];
+  const pages = firstPage.pages || 1;
+
+  if (pages <= 1) {
+    return records;
+  }
+
+  for (let startPage = 2; startPage <= pages; startPage += PAGE_FETCH_CONCURRENCY) {
+    const pageNos = Array.from(
+      { length: Math.min(PAGE_FETCH_CONCURRENCY, pages - startPage + 1) },
+      (_, index) => startPage + index
+    );
+    const chunk = await Promise.all(
+      pageNos.map((pageNum) =>
+        listElectronicBoundaries({
+          pageNum,
+          pageSize: QUERY_PAGE_SIZE,
+          orderBy: 'update_time',
+          order: 'desc'
+        })
+      )
+    );
+    chunk
+      .sort((a, b) => a.pageNum - b.pageNum)
+      .forEach((page) => records.push(...(page.list || [])));
+  }
+
+  return records;
+}
+
+async function buildStationAlertRows(stations: TermiteStation[]): Promise<StationAlert[]> {
+  const candidates = stations
+    .slice()
+    .sort((a, b) => {
+      const termiteDiff = Number(b.termiteStatus === 1) - Number(a.termiteStatus === 1);
+      if (termiteDiff !== 0) return termiteDiff;
+      const statusDiff = b.status - a.status;
+      if (statusDiff !== 0) return statusDiff;
+      return sortByLatestEntityTime(a, b);
+    })
+    .slice(0, ALERT_SCAN_LIMIT);
+
+  const results = await Promise.allSettled(
+    candidates.map((station) => queryTermiteRealtime({ id: station.id, preferCache: true }))
+  );
+
+  const rows: StationAlert[] = [];
+  results.forEach((result, index) => {
+    if (result.status !== 'fulfilled') return;
+    const groups = result.value.alerts;
+    const alertList = [...(groups?.openAlerts || []), ...(groups?.recentHandledAlerts || [])];
+    rows.push(...mapStationAlerts(candidates[index], alertList));
+  });
+
+  return rows.sort(sortByAlertTimeDesc).slice(0, ALERT_DISPLAY_LIMIT);
+}
+
+async function buildBoundaryAlertRows(boundaries: ElectronicBoundary[]): Promise<BoundaryAlert[]> {
+  const candidates = boundaries
+    .slice()
+    .sort((a, b) => {
+      const statusDiff = b.status - a.status;
+      if (statusDiff !== 0) return statusDiff;
+      return sortByLatestEntityTime(a, b);
+    })
+    .slice(0, ALERT_SCAN_LIMIT);
+
+  const results = await Promise.allSettled(
+    candidates.map((boundary) => queryBoundaryRealtime({ id: boundary.id, preferCache: true }))
+  );
+
+  const rows: BoundaryAlert[] = [];
+  results.forEach((result, index) => {
+    if (result.status !== 'fulfilled') return;
+    rows.push(...mapBoundaryAlerts(candidates[index], result.value.alerts || []));
+  });
+
+  return rows.sort(sortByAlertTimeDesc).slice(0, ALERT_DISPLAY_LIMIT);
+}
+
+async function loadStationOverview() {
+  const stations = await fetchAllTermiteStations();
+  stats.stationTotal = stations.length;
+  stats.stationWithTermites = stations.filter((station) => station.termiteStatus === 1).length;
+  stats.stationNoTermites = stations.filter((station) => station.termiteStatus === 0).length;
+  stats.stationNoData = stations.filter((station) => station.termiteStatus === undefined).length;
+  rebuildDashboardMapPoints(stations);
+  stationAlerts.value = await buildStationAlertRows(stations);
+}
+
+async function loadBoundaryOverview() {
+  try {
+    const overview = await getElectronicBoundaryDashboardOverview();
+    stats.boundaryTotal = overview.total || 0;
+    stats.boundaryOnline = overview.online || 0;
+    stats.boundaryOffline = overview.offline || 0;
+    applyBoundaryOverviewMapData(overview);
+    boundaryAlerts.value = mapDashboardBoundaryAlerts(overview.alerts || []).slice(0, ALERT_DISPLAY_LIMIT);
+    persistBoundaryMapCache();
+    if (currentMap.value === 'wuhan') {
+      void ensureWuhanBoundaryMapPoints();
+    }
+  } catch (error: any) {
+    console.warn('dashboard-overview 接口不可用，回退到旧版界桩概览加载逻辑', error);
+    await loadBoundaryOverviewLegacy();
+  }
+}
+
+async function ensureWuhanBoundaryMapPoints() {
+  if (wuhanBoundaryPointsLoaded.value || wuhanBoundaryPointsLoading.value) {
+    return;
+  }
+  wuhanBoundaryPointsLoading.value = true;
+  try {
+    const response = await getElectronicBoundaryDashboardWuhanPoints();
+    wuhanBoundaryOnlineMapData.value = (response.onlinePoints || []).map(mapDashboardBoundaryPoint);
+    wuhanBoundaryOfflineMapData.value = (response.offlinePoints || []).map(mapDashboardBoundaryPoint);
+    wuhanBoundaryPointsLoaded.value = true;
+    persistBoundaryMapCache();
+  } catch (error: any) {
+    ElMessage.error(error?.message || '加载武汉界桩点位失败');
+  } finally {
+    wuhanBoundaryPointsLoading.value = false;
+  }
+}
+
+async function loadBoundaryOverviewLegacy() {
+  const [summaryPage, onlineSummaryPage, offlineSummaryPage, onlineCandidatesPage] = await Promise.all([
+    listElectronicBoundaries({
+      pageNum: 1,
+      pageSize: 1,
+      orderBy: 'update_time',
+      order: 'desc'
+    }),
+    listElectronicBoundaries({
+      pageNum: 1,
+      pageSize: 1,
+      status: 1,
+      orderBy: 'update_time',
+      order: 'desc'
+    }),
+    listElectronicBoundaries({
+      pageNum: 1,
+      pageSize: 1,
+      status: 0,
+      orderBy: 'update_time',
+      order: 'desc'
+    }),
+    listElectronicBoundaries({
+      pageNum: 1,
+      pageSize: ALERT_SCAN_LIMIT,
+      status: 1,
+      orderBy: 'update_time',
+      order: 'desc'
+    })
+  ]);
+
+  stats.boundaryTotal = summaryPage.total || 0;
+  stats.boundaryOnline = onlineSummaryPage.total || 0;
+  stats.boundaryOffline = offlineSummaryPage.total || 0;
+
+  let alertCandidates = [...(onlineCandidatesPage.list || [])];
+  if (alertCandidates.length < ALERT_SCAN_LIMIT && stats.boundaryOffline > 0) {
+    const offlineCandidatesPage = await listElectronicBoundaries({
+      pageNum: 1,
+      pageSize: ALERT_SCAN_LIMIT - alertCandidates.length,
+      status: 0,
+      orderBy: 'update_time',
+      order: 'desc'
+    });
+    alertCandidates = [...alertCandidates, ...(offlineCandidatesPage.list || [])];
+  }
+  boundaryAlerts.value = await buildBoundaryAlertRows(alertCandidates);
+
+  try {
+    const boundaries = await fetchAllElectronicBoundaries();
+    rebuildDashboardBoundaryMapPoints(boundaries);
+    wuhanBoundaryPointsLoaded.value = true;
+    persistBoundaryMapCache();
+  } catch (error: any) {
+    ElMessage.error(error?.message || '加载电子界桩地图聚合失败');
+  }
+}
+
+async function loadDashboardData() {
+  loading.value = true;
+  const [stationError, boundaryError] = await Promise.all([
+    loadStationOverview().then(() => null).catch((error) => error),
+    loadBoundaryOverview().then(() => null).catch((error) => error)
+  ]);
+
+  if (stationError) {
+    ElMessage.error(stationError.message || '加载白蚁测站概览失败');
+  }
+  if (boundaryError) {
+    ElMessage.error(boundaryError.message || '加载电子界桩概览失败');
+  }
+  loading.value = false;
+}
+
 async function handleAlert(alert: StationAlert) {
+  if (alert.alertId == null) {
+    ElMessage.warning('该预警来自缓存聚合结果，当前没有可提交的 alertId，请到测站详情页刷新后再处理');
+    return;
+  }
   try {
     await ElMessageBox.confirm(
       `确认将预警"${alert.alertDesc}"标记为已处理吗？`,
@@ -819,74 +1207,26 @@ async function handleAlert(alert: StationAlert) {
         type: 'warning'
       }
     );
-    
-    // 调用后端接口标记预警为已处理
+
     try {
       await updateAlertStatus(alert.alertId, { handled: true, handler: 'admin' });
     } catch (e: any) {
       ElMessage.error(e.message || '更新预警状态失败');
       return;
     }
-    
-    // 从列表中移除该预警
-    const index = stationAlerts.value.findIndex(a => a.alertId === alert.alertId);
-    if (index > -1) {
-      stationAlerts.value.splice(index, 1);
-    }
-    
+
     ElMessage.success('预警已标记为已处理');
-    
-    // 刷新统计数据
-    await loadAlerts();
+
+    loading.value = true;
+    try {
+      await loadStationOverview();
+    } catch (e: any) {
+      ElMessage.error(e.message || '刷新白蚁预警失败');
+    } finally {
+      loading.value = false;
+    }
   } catch {
     // 用户取消
-  }
-}
-
-async function loadAlerts() {
-  loading.value = true;
-  try {
-    // 加载所有测站
-    const page = await listTermiteStations({ pageNo: 1, pageSize: 1000 });
-    const stations = page.records;
-    
-    stats.stationTotal = page.total;
-    // 概览统计统一与列表的“白蚁状态”对齐
-    stats.stationWithTermites = stations.filter(s => s.termiteStatus === 1).length;
-    stats.stationNoTermites = stations.filter(s => s.termiteStatus === 0).length;
-    stats.stationNoData = stations.filter(s => s.termiteStatus === undefined).length;
-    rebuildDashboardMapPoints(stations);
-    
-    // 预警列表与测站数据保持一致：仅从有白蚁的测站中生成
-    const alertStations = stations.filter(s => s.termiteStatus === 1).slice(0, 6);
-    stationAlerts.value = alertStations.map((s, idx) => ({
-      stationId: s.id,
-      stationCode: s.stationCode,
-      name: s.name,
-      alertId: 1000 + s.id,
-      alertTime: s.updateTime || s.createTime || new Date(Date.now() - idx * 3600_000).toISOString(),
-      alertDesc: '检测到白蚁活动迹象',
-      handleStatus: idx < 2 ? 0 : 1
-    }));
-    
-    ElMessage.success('数据已刷新');
-  } catch (e: any) {
-    ElMessage.error(e.message || '加载失败');
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function loadBoundaryStats() {
-  try {
-    const page = await listElectronicBoundaries({ pageNum: 1, pageSize: 500 });
-    const list = page.list;
-    stats.boundaryTotal = page.total;
-    stats.boundaryOnline = list.filter(b => b.status === 1).length;
-    stats.boundaryOffline = list.filter(b => b.status === 0).length;
-    rebuildDashboardBoundaryMapPoints(list);
-  } catch (e: any) {
-    ElMessage.error(e.message || '加载电子界桩统计失败');
   }
 }
 
@@ -916,8 +1256,8 @@ function toggleFullscreen() {
 }
 
 onMounted(() => {
-  loadAlerts();
-  loadBoundaryStats();
+  restoreBoundaryMapCache();
+  void loadDashboardData();
   const updateTime = () => {
     const dt = new Date();
     const y = dt.getFullYear();

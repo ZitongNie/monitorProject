@@ -19,6 +19,9 @@
       <el-form-item label="监测站编号"><el-input v-model="query.stationCode" placeholder="stationCode" clearable /></el-form-item>
       <el-form-item label="名称"><el-input v-model="query.name" placeholder="名称" clearable /></el-form-item>
       <el-form-item label="水库编码"><el-input v-model="query.reservoirCode" placeholder="reservoirCode" clearable /></el-form-item>
+      <el-form-item label="省"><el-input v-model="query.provinceName" placeholder="省/直辖市" clearable /></el-form-item>
+      <el-form-item label="市"><el-input v-model="query.cityName" placeholder="城市" clearable /></el-form-item>
+      <el-form-item label="区县"><el-input v-model="query.districtName" placeholder="区县" clearable /></el-form-item>
       <el-form-item label="状态">
         <el-select v-model="query.status" placeholder="全部" clearable style="width:120px">
           <el-option label="离线" :value="0" />
@@ -81,6 +84,11 @@
       <el-table-column prop="name" label="名称" min-width="180" />
       <el-table-column prop="rtuid" label="RTUID" min-width="150" />
       <el-table-column prop="reservoirCode" label="水库编码" min-width="130" />
+      <el-table-column label="行政区划" min-width="220">
+        <template #default="{ row }">
+          {{ formatRegion(row) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'info'">
@@ -195,6 +203,36 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
+          <el-form-item label="省名称" prop="provinceName">
+            <el-input v-model="form.provinceName" placeholder="如：湖北省" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="省代码" prop="provinceCode">
+            <el-input v-model="form.provinceCode" placeholder="如：420000" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="市名称" prop="cityName">
+            <el-input v-model="form.cityName" placeholder="如：武汉市" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="市代码" prop="cityCode">
+            <el-input v-model="form.cityCode" placeholder="如：420100" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="区县名称" prop="districtName">
+            <el-input v-model="form.districtName" placeholder="如：洪山区" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="区县代码" prop="districtCode">
+            <el-input v-model="form.districtCode" placeholder="如：420111" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
           <el-form-item label="联系人" prop="contactPerson">
             <el-input v-model="form.contactPerson" placeholder="联系人姓名(可选)" clearable />
           </el-form-item>
@@ -306,7 +344,27 @@ const statsNoTermites = computed(() => records.value.filter(s => s.termiteStatus
 const statsNoData = computed(() => records.value.filter(s => s.termiteStatus === undefined).length);
 
 function onSearch() { query.pageNo = 1; load(); }
-function onReset() { Object.assign(query, { stationCode: undefined, name: undefined, rtuid: undefined, reservoirCode: undefined, status: undefined, contactPerson: undefined, contactPhone: undefined, pageNo: 1, pageSize: query.pageSize }); load(); }
+function onReset() {
+  Object.assign(query, {
+    stationCode: undefined,
+    name: undefined,
+    rtuid: undefined,
+    reservoirCode: undefined,
+    provinceName: undefined,
+    cityName: undefined,
+    districtName: undefined,
+    status: undefined,
+    contactPerson: undefined,
+    contactPhone: undefined,
+    pageNo: 1,
+    pageSize: query.pageSize
+  });
+  load();
+}
+
+function formatRegion(row: TermiteStation) {
+  return [row.provinceName, row.cityName, row.districtName].filter(Boolean).join(' / ') || '-';
+}
 
 function viewDetail(row: TermiteStation) {
   router.push({ 

@@ -92,6 +92,7 @@
           <el-descriptions-item label="材质">{{ detail.material || '-' }}</el-descriptions-item>
           <el-descriptions-item label="高度(m)">{{ detail.height ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="埋深(m)">{{ detail.buryDepth ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="行政区划" :span="3">{{ formatRegion(detail) }}</el-descriptions-item>
           <el-descriptions-item label="地址" :span="3">{{ detail.address || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
@@ -123,6 +124,12 @@
         <el-col :span="12"><el-form-item label="经度(WGS84)" prop="lngWgs84" required><el-input-number v-model="editForm.lngWgs84" :precision="6" :step="0.0001" :min="-180" :max="180" style="width:100%" /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="纬度(WGS84)" prop="latWgs84" required><el-input-number v-model="editForm.latWgs84" :precision="6" :step="0.0001" :min="-90" :max="90" style="width:100%" /></el-form-item></el-col>
         <el-col :span="24"><el-form-item label="地址" prop="address"><el-input v-model="editForm.address" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="省名称" prop="provinceName"><el-input v-model="editForm.provinceName" placeholder="如：湖北省" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="省代码" prop="provinceCode"><el-input v-model="editForm.provinceCode" placeholder="如：420000" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="市名称" prop="cityName"><el-input v-model="editForm.cityName" placeholder="如：武汉市" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="市代码" prop="cityCode"><el-input v-model="editForm.cityCode" placeholder="如：420100" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="区县名称" prop="districtName"><el-input v-model="editForm.districtName" placeholder="如：洪山区" /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="区县代码" prop="districtCode"><el-input v-model="editForm.districtCode" placeholder="如：420111" /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="材质" prop="material"><el-input v-model="editForm.material" /></el-form-item></el-col>
         <el-col :span="6"><el-form-item label="高度(m)" prop="height"><el-input-number v-model="editForm.height" :min="0" :step="0.1" :precision="2" style="width:100%" /></el-form-item></el-col>
         <el-col :span="6"><el-form-item label="埋深(m)" prop="buryDepth"><el-input-number v-model="editForm.buryDepth" :min="0" :step="0.1" :precision="2" style="width:100%" /></el-form-item></el-col>
@@ -146,7 +153,7 @@ import {
   getElectronicBoundaryDetail as getBoundaryDetail,
   updateElectronicBoundary as updateBoundary,
   queryBoundaryRealtime,
-  listElectronicBoundaries as listBoundaries,
+  listAllElectronicBoundaries,
   type ElectronicBoundary as ElectronicBoundaryDTO,
   type BoundaryRealtimeResponse
 } from '@/services/electronicBoundaries';
@@ -177,10 +184,10 @@ async function loadDetail() {
   try {
     if (id) { try { detail.value = await getBoundaryDetail(id); } catch {} }
     if (!detail.value) {
-      const page = await listBoundaries({ pageNum: 1, pageSize: 500 });
+      const list = await listAllElectronicBoundaries({ order: 'desc' });
       let found: any = undefined;
-      if (id) found = page.list.find(b => b.id === id);
-      if (!found && deviceId) found = page.list.find(b => b.deviceId === deviceId);
+      if (id) found = list.find(b => b.id === id);
+      if (!found && deviceId) found = list.find(b => b.deviceId === deviceId);
       if (found) detail.value = found as any;
     }
     if (!detail.value) throw new Error('电子界桩不存在');
@@ -191,6 +198,10 @@ function openEditDialog() {
   if (!detail.value) return;
   editForm.value = { ...detail.value };
   editVisible.value = true;
+}
+
+function formatRegion(row: ElectronicBoundaryDTO) {
+  return [row.provinceName, row.cityName, row.districtName].filter(Boolean).join(' / ') || '-';
 }
 
 async function saveEdit() {

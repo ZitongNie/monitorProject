@@ -152,8 +152,88 @@
 
             <div style="margin-top: 16px; text-align: center;">
               <el-space>
+                <el-button plain @click="refreshBoundaryRealtime" :loading="boundaryRealtimeLoading">刷新实时</el-button>
                 <el-button type="primary" plain @click="viewBoundaryDetail">详细信息</el-button>
               </el-space>
+            </div>
+
+            <div class="history-section" v-loading="boundaryRealtimeLoading">
+              <div class="section-header">
+                <div class="section-title">实时监测</div>
+                <div class="section-subtitle" v-if="boundaryRealtime?.realTimeData?.reportTime">
+                  {{ formatDateTime(boundaryRealtime.realTimeData.reportTime) }}
+                </div>
+              </div>
+              <div v-if="boundaryRealtimeError" class="detail-error">{{ boundaryRealtimeError }}</div>
+              <el-descriptions v-else-if="boundaryRealtime?.realTimeData" :column="2" border size="small">
+                <el-descriptions-item label="温度">
+                  {{ formatMetric(boundaryRealtime.realTimeData.temperature) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="湿度">
+                  {{ formatMetric(boundaryRealtime.realTimeData.humidity) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="倾斜角">
+                  {{ formatMetric(boundaryRealtime.realTimeData.tiltAngle) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="倾斜状态">
+                  {{ formatBinaryStatus(boundaryRealtime.realTimeData.tiltStatus, '异常', '正常') }}
+                </el-descriptions-item>
+                <el-descriptions-item label="震动状态">
+                  {{ formatBinaryStatus(boundaryRealtime.realTimeData.vibrationStatus, '异常', '正常') }}
+                </el-descriptions-item>
+                <el-descriptions-item label="是否告警">
+                  {{ formatBinaryStatus(boundaryRealtime.realTimeData.isAlert, '告警', '正常') }}
+                </el-descriptions-item>
+                <el-descriptions-item label="剩余电量%">
+                  {{ formatMetric(boundaryRealtime.realTimeData.remainingPower) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="信号强度">
+                  {{ formatMetric(boundaryRealtime.realTimeData.signalStrength) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="电压">
+                  {{ formatMetric(boundaryRealtime.realTimeData.voltage) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="测站类型">
+                  {{ formatMetric(boundaryRealtime.realTimeData.stationType) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="观测时间" :span="2">
+                  {{ formatDateTime(boundaryRealtime.realTimeData.observationTime) }}
+                </el-descriptions-item>
+              </el-descriptions>
+              <el-empty v-else description="暂无实时数据" :image-size="72" />
+            </div>
+
+            <div class="history-section">
+              <div class="section-title">预警信息</div>
+              <div v-if="boundaryAlertRows.length" class="boundary-alert-list">
+                <div v-for="(alert, index) in boundaryAlertRows" :key="`${alert.alertId ?? 'null'}-${alert.alertTime}-${index}`" class="boundary-alert-item">
+                  <div class="boundary-alert-head">
+                    <span class="boundary-alert-type">{{ alert.alertType || '预警' }}</span>
+                    <el-tag :type="alert.handleStatus === 1 ? 'success' : 'danger'" effect="plain" size="small">
+                      {{ alert.handleStatus === 1 ? '已处理' : '未处理' }}
+                    </el-tag>
+                  </div>
+                  <div class="boundary-alert-time">{{ formatDateTime(alert.alertTime) }}</div>
+                  <div class="boundary-alert-desc">{{ alert.alertDesc || '暂无描述' }}</div>
+                </div>
+              </div>
+              <el-empty v-else description="暂无预警" :image-size="72" />
+            </div>
+
+            <div v-if="latestBoundaryImage" class="history-section">
+              <div class="section-title">最近图片</div>
+              <div class="boundary-image-card">
+                <el-image
+                  :src="latestBoundaryImage.imagePath"
+                  :preview-src-list="boundaryImagePreviewList"
+                  fit="cover"
+                  class="boundary-image-preview"
+                />
+                <div class="boundary-image-meta">
+                  <div>{{ formatDateTime(latestBoundaryImage.reportTime) }}</div>
+                  <div>{{ latestBoundaryImage.imageCode }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -165,8 +245,15 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { listTermiteStations, deleteTermiteStation, queryTermiteRealtime, type TermiteStation } from '@/services/termiteStations';
-import { listElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
+import { listAllTermiteStations, deleteTermiteStation, type TermiteStation } from '@/services/termiteStations';
+import {
+  listAllElectronicBoundaries,
+  queryBoundaryRealtime,
+  type BoundaryAlertDTO,
+  type BoundaryRealtimeResponse,
+  type ElectronicBoundary
+} from '@/services/electronicBoundaries';
+import { fetchTermiteMonitorHistory, type TermiteMonitorHistoryRecord } from '@/services/termiteMonitor';
 import { ElMessage, ElMessageBox, ElTag } from 'element-plus';
 import { Location } from '@element-plus/icons-vue';
 import { use } from 'echarts/core';
@@ -185,9 +272,13 @@ let ws: WebSocket | null = null;
 let map: any = null;
 const stationMarkers: any[] = [];
 const boundaryMarkers: any[] = [];
+let boundaryClusterRenderTimer: number | null = null;
 const selectedStation = ref<TermiteStation | null>(null);
 const selectedBoundary = ref<ElectronicBoundary | null>(null);
-const historyData = ref<Array<{ t: number; status: number }>>([]);
+const historyData = ref<TermiteMonitorHistoryRecord[]>([]);
+const boundaryRealtime = ref<BoundaryRealtimeResponse | null>(null);
+const boundaryRealtimeLoading = ref(false);
+const boundaryRealtimeError = ref('');
 let hoverOpenTimer: any = null;
 let lastHoverId: string | number | null = null;
 
@@ -205,6 +296,19 @@ const visibleStationCount = ref(0);
 const visibleBoundaryCount = ref(0);
 const currentZoom = ref(6);
 
+interface BoundaryClusterGroup {
+  key: string;
+  boundaries: ElectronicBoundary[];
+  centerLng: number;
+  centerLat: number;
+  onlineCount: number;
+  offlineCount: number;
+  minLng: number;
+  maxLng: number;
+  minLat: number;
+  maxLat: number;
+}
+
 function svgToDataUrl(svg: string) {
   // Use URI encoding to avoid base64/unicode pitfalls; Baidu Icon supports data:image/svg+xml
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -221,10 +325,230 @@ function getBoundaryMarkerColor(boundary: ElectronicBoundary) {
   return isOnline ? '#67c23a' : '#8c8c8c';
 }
 
+function formatClusterCount(count: number) {
+  if (count >= 10000) return `${Math.round(count / 1000)}k`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(count);
+}
+
+function getBoundaryClusterGridSizePx(zoom: number) {
+  if (zoom <= 6) return 110;
+  if (zoom <= 8) return 90;
+  if (zoom <= 10) return 72;
+  if (zoom <= 12) return 56;
+  if (zoom <= 14) return 40;
+  return 26;
+}
+
+function getBoundaryClusterCellSize(zoom: number) {
+  const bounds = map?.getBounds?.();
+  const container = mapEl.value;
+  if (!bounds || !container) return null;
+
+  const southWest = bounds.getSouthWest?.();
+  const northEast = bounds.getNorthEast?.();
+  if (!southWest || !northEast) return null;
+
+  const width = Math.max(container.clientWidth || 0, 1);
+  const height = Math.max(container.clientHeight || 0, 1);
+  const lngSpan = Math.max(Math.abs(northEast.lng - southWest.lng), 0.0001);
+  const latSpan = Math.max(Math.abs(northEast.lat - southWest.lat), 0.0001);
+  const gridPx = getBoundaryClusterGridSizePx(zoom);
+
+  return {
+    gridLng: Math.max(lngSpan / Math.max(width / gridPx, 1), 0.00002),
+    gridLat: Math.max(latSpan / Math.max(height / gridPx, 1), 0.00002)
+  };
+}
+
+function buildBoundaryClusters(boundaries: ElectronicBoundary[]) {
+  const zoom = typeof map?.getZoom === 'function' ? map.getZoom() : currentZoom.value;
+  const cellSize = getBoundaryClusterCellSize(zoom);
+
+  if (!cellSize) {
+    return boundaries
+      .filter((boundary) => boundary.lngBd09 != null && boundary.latBd09 != null)
+      .map((boundary) => ({
+        key: `single-${boundary.id}`,
+        boundaries: [boundary],
+        centerLng: boundary.lngBd09 as number,
+        centerLat: boundary.latBd09 as number,
+        onlineCount: boundary.status === 1 ? 1 : 0,
+        offlineCount: boundary.status === 0 ? 1 : 0,
+        minLng: boundary.lngBd09 as number,
+        maxLng: boundary.lngBd09 as number,
+        minLat: boundary.latBd09 as number,
+        maxLat: boundary.latBd09 as number
+      }));
+  }
+
+  const groups = new Map<string, {
+    boundaries: ElectronicBoundary[];
+    sumLng: number;
+    sumLat: number;
+    onlineCount: number;
+    offlineCount: number;
+    minLng: number;
+    maxLng: number;
+    minLat: number;
+    maxLat: number;
+  }>();
+
+  boundaries.forEach((boundary) => {
+    const lng = boundary.lngBd09;
+    const lat = boundary.latBd09;
+    if (lng == null || lat == null) return;
+
+    const cellX = Math.floor(lng / cellSize.gridLng);
+    const cellY = Math.floor(lat / cellSize.gridLat);
+    const key = `${cellX}:${cellY}`;
+    const current = groups.get(key) || {
+      boundaries: [],
+      sumLng: 0,
+      sumLat: 0,
+      onlineCount: 0,
+      offlineCount: 0,
+      minLng: lng,
+      maxLng: lng,
+      minLat: lat,
+      maxLat: lat
+    };
+
+    current.boundaries.push(boundary);
+    current.sumLng += lng;
+    current.sumLat += lat;
+    current.onlineCount += boundary.status === 1 ? 1 : 0;
+    current.offlineCount += boundary.status === 0 ? 1 : 0;
+    current.minLng = Math.min(current.minLng, lng);
+    current.maxLng = Math.max(current.maxLng, lng);
+    current.minLat = Math.min(current.minLat, lat);
+    current.maxLat = Math.max(current.maxLat, lat);
+    groups.set(key, current);
+  });
+
+  return Array.from(groups.entries()).map(([key, group]) => ({
+    key,
+    boundaries: group.boundaries,
+    centerLng: group.sumLng / group.boundaries.length,
+    centerLat: group.sumLat / group.boundaries.length,
+    onlineCount: group.onlineCount,
+    offlineCount: group.offlineCount,
+    minLng: group.minLng,
+    maxLng: group.maxLng,
+    minLat: group.minLat,
+    maxLat: group.maxLat
+  }));
+}
+
+function getBoundaryClusterAppearance(count: number) {
+  if (count >= 1000) {
+    return { size: 66, color: '#f56c6c', ringColor: '#fde2e2', fontSize: 17 };
+  }
+  if (count >= 100) {
+    return { size: 58, color: '#e6a23c', ringColor: '#faecd8', fontSize: 16 };
+  }
+  if (count >= 10) {
+    return { size: 50, color: '#409eff', ringColor: '#d9ecff', fontSize: 15 };
+  }
+  return { size: 44, color: '#67c23a', ringColor: '#e1f3d8', fontSize: 14 };
+}
+
+function zoomToBoundaryCluster(cluster: BoundaryClusterGroup) {
+  if (!map || !(window as any).BMapGL) return;
+
+  const southWest = new BMapGL.Point(cluster.minLng, cluster.minLat);
+  const northEast = new BMapGL.Point(cluster.maxLng, cluster.maxLat);
+  try {
+    const view = map.getViewport([southWest, northEast]);
+    const nextZoom = Math.min(Math.max(view.zoom, map.getZoom() + 2), 18);
+    map.centerAndZoom(view.center, nextZoom);
+  } catch {
+    map.centerAndZoom(new BMapGL.Point(cluster.centerLng, cluster.centerLat), Math.min(map.getZoom() + 2, 18));
+  }
+}
+
+function addBoundaryClusterMarker(cluster: BoundaryClusterGroup) {
+  if (!map || !(window as any).BMapGL) return;
+
+  const count = cluster.boundaries.length;
+  const point = new BMapGL.Point(cluster.centerLng, cluster.centerLat);
+  const { size, color, ringColor, fontSize } = getBoundaryClusterAppearance(count);
+  const label = formatClusterCount(count);
+  const radius = size / 2;
+  const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${radius}" cy="${radius}" r="${radius - 4}" fill="${ringColor}" fill-opacity="0.98"/>
+    <circle cx="${radius}" cy="${radius}" r="${radius - 10}" fill="${color}" fill-opacity="0.95"/>
+    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+      font-size="${fontSize}" font-weight="700" fill="#ffffff">${label}</text>
+  </svg>`;
+
+  const icon = new BMapGL.Icon(
+    svgToDataUrl(svgIcon),
+    new BMapGL.Size(size, size),
+    { anchor: new BMapGL.Size(radius, radius) }
+  );
+  const marker = new BMapGL.Marker(point, { icon });
+  (marker as any)._boundaryClusterKey = cluster.key;
+
+  marker.addEventListener('mouseover', () => {
+    if (lastHoverId === cluster.key) return;
+    if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
+    hoverOpenTimer = window.setTimeout(() => {
+      const infoWindow = new BMapGL.InfoWindow(
+        `<div style="padding:8px;line-height:1.8;font-size:13px;">
+          <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">电子界桩聚合点</div>
+          <div>聚合数量：${count}</div>
+          <div>在线：<span style="color:#67c23a;font-weight:bold;">${cluster.onlineCount}</span></div>
+          <div>离线：<span style="color:#909399;font-weight:bold;">${cluster.offlineCount}</span></div>
+          <div style="color:#999;font-size:12px;margin-top:4px;">点击后可继续放大查看单个界桩</div>
+        </div>`,
+        {
+          width: 240,
+          height: 0,
+          enableMessage: false,
+          offset: new BMapGL.Size(0, -10)
+        }
+      );
+      map.openInfoWindow(infoWindow, point);
+      lastHoverId = cluster.key;
+    }, 120);
+  });
+
+  marker.addEventListener('click', () => {
+    console.log('[MapView] 点击电子界桩聚合点:', cluster.key, count);
+    zoomToBoundaryCluster(cluster);
+  });
+
+  map.addOverlay(marker);
+  boundaryMarkers.push(marker);
+}
+
+function scheduleBoundaryClusterRender() {
+  if (boundaryClusterRenderTimer) {
+    window.clearTimeout(boundaryClusterRenderTimer);
+  }
+  boundaryClusterRenderTimer = window.setTimeout(() => {
+    boundaryClusterRenderTimer = null;
+    void renderBoundariesFromCache();
+  }, 120);
+}
+
 const headerTitle = computed(() => {
   if (selectedBoundary.value) return '电子界桩详细信息';
   return '测站详细信息';
 });
+
+const boundaryAlertRows = computed(() => {
+  const list: BoundaryAlertDTO[] = [...(boundaryRealtime.value?.alerts || [])];
+  list.sort((a, b) => (b.alertTime || '').localeCompare(a.alertTime || ''));
+  return list.slice(0, 5);
+});
+
+const latestBoundaryImage = computed(() => boundaryRealtime.value?.images?.[0] || null);
+
+const boundaryImagePreviewList = computed(() =>
+  (boundaryRealtime.value?.images || []).map((image) => image.imagePath)
+);
 
 async function searchStations(query: string) {
   if (!query) {
@@ -243,28 +567,19 @@ async function searchStations(query: string) {
   }
 }
 
-function selectStation(stationId: number | null) {
+async function selectStation(stationId: number | null) {
   if (!stationId) return;
   
   const station = allStations.value.find(s => s.id === stationId);
   if (!station) return;
-  
-  // 设置选中的测站
-  selectedStation.value = station;
-  
+
   // 地图中心移动到该测站
   if (map && station.lngBd09 && station.latBd09) {
     const point = new BMapGL.Point(station.lngBd09, station.latBd09);
     map.centerAndZoom(point, 15);
-    
-    // 触发对应的marker点击效果
-    const marker = stationMarkers.find((m: any) => m._stationId === station.id);
-    if (marker) {
-      // 模拟点击marker
-      marker.dispatchEvent('click');
-    }
   }
-  
+
+  void selectStationRecord(station);
   ElMessage.success(`已定位到 ${station.name}`);
 }
 
@@ -293,6 +608,30 @@ function viewBoundaryDetail() {
       }
     });
   }
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return '-';
+  try {
+    return new Date(value).toLocaleString('zh-CN', { hour12: false });
+  } catch {
+    return value;
+  }
+}
+
+function formatMetric(value?: number | string | null) {
+  return value ?? '-';
+}
+
+function formatBinaryStatus(value: number | undefined, activeLabel: string, inactiveLabel: string) {
+  if (value === undefined || value === null) return '-';
+  return value === 1 ? activeLabel : inactiveLabel;
+}
+
+function resetBoundaryRealtimeState() {
+  boundaryRealtime.value = null;
+  boundaryRealtimeLoading.value = false;
+  boundaryRealtimeError.value = '';
 }
 
 async function deleteStation() {
@@ -329,55 +668,121 @@ async function deleteStation() {
 
 const chartOption = computed(() => {
   if (!historyData.value.length) return {};
-  const times = historyData.value.map(d => dayjs(d.t).format('MM-DD HH:mm'));
-  const values = historyData.value.map(d => d.status);
+  const times = historyData.value.map(item => dayjs(item.reportTime).format('MM-DD HH:mm'));
+  const values = historyData.value.map(item => item.termiteStatus ?? null);
+  const alertValues = historyData.value.map(item => (item.isAlert === 1 ? (item.termiteStatus ?? 1) : null));
   return {
     title: { text: '', left: 'center' },
     tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', data: times, axisLabel: { rotate: 30 } },
-    yAxis: { type: 'value', min: 0, max: 1, axisLabel: { formatter: (v: number) => v === 1 ? '在线' : '离线' } },
-    series: [{ name: '状态', type: 'line', data: values, step: 'end', lineStyle: { color: '#409EFF' } }]
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 1,
+      interval: 1,
+      axisLabel: { formatter: (value: number) => (value === 1 ? '有白蚁' : '无白蚁') }
+    },
+    series: [
+      {
+        name: '白蚁状态',
+        type: 'line',
+        data: values,
+        step: 'end',
+        connectNulls: false,
+        lineStyle: { color: '#409EFF' }
+      },
+      {
+        name: '预警点',
+        type: 'line',
+        data: alertValues,
+        showLine: false,
+        connectNulls: false,
+        symbolSize: 10,
+        itemStyle: { color: '#f56c6c' }
+      }
+    ]
   };
 });
 
-function pushMockHistory(st: TermiteStation) {
-  const key = `mock_hist_termite_${st.id}`;
+async function loadStationHistory(station: TermiteStation) {
+  const currentStationId = station.id;
+  historyData.value = [];
   try {
-    const raw = localStorage.getItem(key);
-    const arr = raw ? JSON.parse(raw) : [{ t: Date.now() - 3600_000, status: st.status }];
-    arr.push({ t: Date.now(), status: st.status });
-    localStorage.setItem(key, JSON.stringify(arr.slice(-40)));
-  } catch {}
+    const endTime = dayjs();
+    const startTime = endTime.subtract(7, 'day');
+    const page = await fetchTermiteMonitorHistory({
+      stationId: currentStationId,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      pageNo: 1,
+      pageSize: 50,
+      sortOrder: 'asc'
+    });
+    if (selectedStation.value?.id !== currentStationId) {
+      return;
+    }
+    historyData.value = page.records || [];
+  } catch (e: any) {
+    if (selectedStation.value?.id === currentStationId) {
+      historyData.value = [];
+    }
+    ElMessage.error(e.message || '加载历史监测数据失败');
+  }
 }
-function getMockHistory(st: TermiteStation) {
-  const key = `mock_hist_termite_${st.id}`;
-  try { const raw = localStorage.getItem(key); if (raw) return JSON.parse(raw); } catch {}
-  return [] as Array<{ t:number; status:number }>;
+
+async function selectStationRecord(station: TermiteStation) {
+  resetBoundaryRealtimeState();
+  selectedBoundary.value = null;
+  selectedStation.value = station;
+  await loadStationHistory(station);
+}
+
+async function loadBoundaryRealtime(boundary: ElectronicBoundary) {
+  const boundaryId = boundary.id;
+  boundaryRealtimeLoading.value = true;
+  boundaryRealtimeError.value = '';
+  boundaryRealtime.value = null;
+  try {
+    const data = await queryBoundaryRealtime({ id: boundaryId, preferCache: true });
+    if (selectedBoundary.value?.id !== boundaryId) {
+      return;
+    }
+    boundaryRealtime.value = data;
+  } catch (e: any) {
+    if (selectedBoundary.value?.id !== boundaryId) {
+      return;
+    }
+    boundaryRealtimeError.value = e.message || '加载电子界桩实时数据失败';
+  } finally {
+    if (selectedBoundary.value?.id === boundaryId) {
+      boundaryRealtimeLoading.value = false;
+    }
+  }
+}
+
+async function selectBoundaryRecord(boundary: ElectronicBoundary) {
+  selectedStation.value = null;
+  historyData.value = [];
+  selectedBoundary.value = boundary;
+  await loadBoundaryRealtime(boundary);
+}
+
+async function refreshBoundaryRealtime() {
+  if (!selectedBoundary.value) return;
+  await loadBoundaryRealtime(selectedBoundary.value);
 }
 
 async function loadData() {
   try {
     console.log('[MapView] 开始加载测站数据...');
-    // 使用 pageSize=100，避免后端限制导致的 500 错误
-    const page = await listTermiteStations({ pageNo: 1, pageSize: 100 });
-    console.log('[MapView] 获取到测站数据:', page);
-    console.log('[MapView] 测站数量:', page.records.length);
-    
-    // 拉取实时 isAlert 信息，用于标记颜色
-    const stationsWithRealtime = await Promise.all(
-      page.records.map(async s => {
-        try {
-          const rt = await queryTermiteRealtime({ id: s.id, includeAlerts: false, includeImages: false, imageLimit: 0, handledMonths: 1 });
-          return { ...s, isAlert: rt.realTimeData?.isAlert ?? 0 } as TermiteStation & { isAlert?: number };
-        } catch (e) {
-          console.warn('[MapView] 获取实时数据失败, 使用原始数据:', s.id, e);
-          return { ...s, isAlert: 0 } as TermiteStation & { isAlert?: number };
-        }
-      })
-    );
-    
-    // 保存所有测站数据供搜索使用
-    allStations.value = stationsWithRealtime;
+    const stations = await listAllTermiteStations({ sortBy: 'updateTime', order: 'desc' });
+    console.log('[MapView] 获取到测站数据数量:', stations.length);
+
+    allStations.value = stations.map((station) => ({
+      ...station,
+      // 分页列表已返回最新 termiteStatus，这里直接映射成地图预警颜色，避免全量点位逐个调用 realtime
+      isAlert: station.termiteStatus === 1 ? 1 : 0
+    })) as TermiteStation[];
     
     await renderStationsFromCache();
     fitMapToVisiblePoints();
@@ -467,10 +872,7 @@ async function addMarker(station: TermiteStation) {
   // 监听点击事件 - 选中测站并显示详情
   marker.addEventListener('click', () => {
     console.log('[MapView] 点击测站:', station.name);
-    selectedBoundary.value = null;
-    selectedStation.value = station;
-    pushMockHistory(station);
-    historyData.value = getMockHistory(station);
+    void selectStationRecord(station);
   });
   
   // 将标注添加到地图
@@ -484,10 +886,7 @@ async function loadBoundaryData() {
   if (!map || !(window as any).BMapGL) return;
   try {
     console.log('[MapView] 开始加载电子界桩数据...');
-    // 与列表页保持一致，避免请求过大导致后端报错
-    const page = await listElectronicBoundaries({ pageNum: 1, pageSize: 50 });
-    const list = page.list || [];
-    allBoundaries.value = list;
+    allBoundaries.value = await listAllElectronicBoundaries({ order: 'desc' });
     await renderBoundariesFromCache();
     console.log('[MapView] 已添加电子界桩标注数量:', boundaryMarkers.length);
   } catch (e: any) {
@@ -514,7 +913,9 @@ async function renderStationsFromCache() {
     selectedStation.value = null;
     historyData.value = [];
   }
-  await Promise.all(list.map(s => addMarker(s)));
+  list.forEach((station) => {
+    void addMarker(station);
+  });
 }
 
 async function renderBoundariesFromCache() {
@@ -523,6 +924,7 @@ async function renderBoundariesFromCache() {
     visibleBoundaryCount.value = 0;
     if (selectedBoundary.value) {
       selectedBoundary.value = null;
+      resetBoundaryRealtimeState();
     }
     return;
   }
@@ -532,8 +934,16 @@ async function renderBoundariesFromCache() {
   visibleBoundaryCount.value = list.length;
   if (selectedBoundary.value && !list.some(b => b.id === selectedBoundary.value?.id)) {
     selectedBoundary.value = null;
+    resetBoundaryRealtimeState();
   }
-  await Promise.all(list.map(b => addBoundaryMarker(b)));
+  const clusters = buildBoundaryClusters(list);
+  clusters.forEach((cluster) => {
+    if (cluster.boundaries.length === 1) {
+      void addBoundaryMarker(cluster.boundaries[0]);
+      return;
+    }
+    addBoundaryClusterMarker(cluster);
+  });
 }
 
 function fitMapToVisiblePoints() {
@@ -641,8 +1051,7 @@ async function addBoundaryMarker(boundary: ElectronicBoundary) {
 
   marker.addEventListener('click', () => {
     console.log('[MapView] 点击电子界桩:', boundary.name);
-    selectedStation.value = null;
-    selectedBoundary.value = boundary;
+    void selectBoundaryRecord(boundary);
   });
 
   // 将标注添加到地图
@@ -689,7 +1098,13 @@ onMounted(async () => {
     try { map.addEventListener('click', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
     try { map.addEventListener('dragstart', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
     try { map.addEventListener('zoomstart', () => { try { map.closeInfoWindow(); } catch {}; lastHoverId = null; }); } catch {}
-    try { map.addEventListener('zoomend', () => { currentZoom.value = map.getZoom(); }); } catch {}
+    try {
+      map.addEventListener('zoomend', () => {
+        currentZoom.value = map.getZoom();
+        scheduleBoundaryClusterRender();
+      });
+    } catch {}
+    try { map.addEventListener('moveend', () => { scheduleBoundaryClusterRender(); }); } catch {}
     console.info('[Map] Using Baidu Map (BMapGL)');
   } catch (e) {
     ElMessage.error('百度地图脚本加载失败，请检查网络与 AK 配置');
@@ -708,6 +1123,8 @@ onBeforeUnmount(() => {
   ws = null;
   try { if (hoverOpenTimer) clearTimeout(hoverOpenTimer); } catch {}
   hoverOpenTimer = null;
+  try { if (boundaryClusterRenderTimer) clearTimeout(boundaryClusterRenderTimer); } catch {}
+  boundaryClusterRenderTimer = null;
 });
 </script>
 
@@ -881,11 +1298,91 @@ onBeforeUnmount(() => {
   border-top: 1px solid #e4e7ed;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .section-title {
   font-size: 15px;
   font-weight: 600;
   color: #303133;
   margin-bottom: 4px;
+}
+
+.section-subtitle {
+  font-size: 12px;
+  color: #909399;
+}
+
+.detail-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef0f0;
+  color: #c45656;
+  font-size: 13px;
+}
+
+.boundary-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.boundary-alert-item {
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.boundary-alert-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.boundary-alert-type {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.boundary-alert-time {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.boundary-alert-desc {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.boundary-image-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.boundary-image-preview {
+  width: 100%;
+  height: 180px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f7fa;
+}
+
+.boundary-image-meta {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #606266;
 }
 
 .no-history {

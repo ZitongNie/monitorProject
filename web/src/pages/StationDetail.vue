@@ -132,6 +132,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="联系人">{{ detail.contactPerson || '-' }}</el-descriptions-item>
           <el-descriptions-item label="联系电话">{{ detail.contactPhone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="行政区划" :span="3">{{ formatRegion(detail) }}</el-descriptions-item>
           <el-descriptions-item label="地址" :span="3">{{ detail.address || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
@@ -222,6 +223,36 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
+          <el-form-item label="省名称" prop="provinceName">
+            <el-input v-model="editForm.provinceName" placeholder="如：湖北省" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="省代码" prop="provinceCode">
+            <el-input v-model="editForm.provinceCode" placeholder="如：420000" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="市名称" prop="cityName">
+            <el-input v-model="editForm.cityName" placeholder="如：武汉市" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="市代码" prop="cityCode">
+            <el-input v-model="editForm.cityCode" placeholder="如：420100" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="区县名称" prop="districtName">
+            <el-input v-model="editForm.districtName" placeholder="如：洪山区" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="区县代码" prop="districtCode">
+            <el-input v-model="editForm.districtCode" placeholder="如：420111" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
           <el-form-item label="联系人" prop="contactPerson">
             <el-input v-model="editForm.contactPerson" placeholder="联系人姓名(可选)" clearable />
           </el-form-item>
@@ -247,7 +278,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Close, Plus } from '@element-plus/icons-vue';
-import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, listTermiteStations, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
+import { getTermiteStationDetail, updateTermiteStation, queryTermiteRealtime, listAllTermiteStations, type TermiteStation, type TermiteRealtimeResponse } from '@/services/termiteStations';
 import type { FormInstance, FormRules } from 'element-plus';
 import { fetchTermiteAlertCurve, type TermiteAlertCurveResponse } from '@/services/termiteMonitor';
 import { use } from 'echarts/core';
@@ -347,11 +378,11 @@ async function loadDetail() {
     }
     // 2) 若未命中，用列表按 rtuid/reservoirCode 回退匹配
     if (!detail.value) {
-      const page = await listTermiteStations({ pageNo: 1, pageSize: 500 });
+      const list = await listAllTermiteStations({ sortBy: 'updateTime', order: 'desc' });
       let found: any = undefined;
-      if (id) found = page.records.find(s => s.id === id);
-      if (!found && rtuid) found = page.records.find(s => s.rtuid === rtuid);
-      if (!found && reservoirCode) found = page.records.find(s => s.reservoirCode === reservoirCode);
+      if (id) found = list.find(s => s.id === id);
+      if (!found && rtuid) found = list.find(s => s.rtuid === rtuid);
+      if (!found && reservoirCode) found = list.find(s => s.reservoirCode === reservoirCode);
       if (found) detail.value = found as any;
     }
     if (!detail.value) throw new Error('白蚁监测站不存在');
@@ -371,11 +402,21 @@ function openEditDialog() {
       lngWgs84: detail.value.lngWgs84, 
       latWgs84: detail.value.latWgs84,
       address: detail.value.address,
+      provinceCode: detail.value.provinceCode,
+      provinceName: detail.value.provinceName,
+      cityCode: detail.value.cityCode,
+      cityName: detail.value.cityName,
+      districtCode: detail.value.districtCode,
+      districtName: detail.value.districtName,
       contactPerson: detail.value.contactPerson,
       contactPhone: detail.value.contactPhone
     }; 
     editVisible.value = true; 
   } 
+}
+
+function formatRegion(row: TermiteStation) {
+  return [row.provinceName, row.cityName, row.districtName].filter(Boolean).join(' / ') || '-';
 }
 
 async function saveEdit() {

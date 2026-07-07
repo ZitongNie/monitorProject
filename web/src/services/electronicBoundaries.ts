@@ -40,6 +40,68 @@ function gcj02ToBd09(lng: number, lat: number) {
   return { lng: bdLng, lat: bdLat };
 }
 
+function getMockBoundaryCityName(boundary: ElectronicBoundary): string | null {
+  const address = boundary.address || '';
+  const cityMatch = address.match(/([^省自治区直辖市]+市)/);
+  return cityMatch?.[1] || null;
+}
+
+function getMockBoundaryProvinceName(boundary: ElectronicBoundary): string | null {
+  const address = boundary.address || '';
+  const provinceMatch = address.match(/([^自治区省市]+省|[^自治区省市]+市|广西壮族自治区|内蒙古自治区|西藏自治区|宁夏回族自治区|新疆维吾尔自治区)/);
+  return provinceMatch?.[1] || null;
+}
+
+function getMockBoundaryLngLat(boundary: ElectronicBoundary): [number, number] | null {
+  if (typeof boundary.lngWgs84 === 'number' && typeof boundary.latWgs84 === 'number') {
+    return [boundary.lngWgs84, boundary.latWgs84];
+  }
+  if (typeof boundary.lngBd09 === 'number' && typeof boundary.latBd09 === 'number') {
+    return [boundary.lngBd09, boundary.latBd09];
+  }
+  return null;
+}
+
+function aggregateMockBoundaryPoints(
+  boundaries: ElectronicBoundary[],
+  getKey: (boundary: ElectronicBoundary) => string | null
+): { onlinePoints: BoundaryDashboardMapPointDTO[]; offlinePoints: BoundaryDashboardMapPointDTO[] } {
+  const aggregate = new Map<string, { sumLng: number; sumLat: number; boundaryTotal: number; boundaryOnline: number; boundaryOffline: number }>();
+  boundaries.forEach((boundary) => {
+    const key = getKey(boundary);
+    const lngLat = getMockBoundaryLngLat(boundary);
+    if (!key || !lngLat) return;
+
+    const entry = aggregate.get(key) || {
+      sumLng: 0,
+      sumLat: 0,
+      boundaryTotal: 0,
+      boundaryOnline: 0,
+      boundaryOffline: 0
+    };
+    entry.sumLng += lngLat[0];
+    entry.sumLat += lngLat[1];
+    entry.boundaryTotal += 1;
+    if (boundary.status === 1) entry.boundaryOnline += 1;
+    if (boundary.status === 0) entry.boundaryOffline += 1;
+    aggregate.set(key, entry);
+  });
+
+  const points = Array.from(aggregate.entries()).map(([name, item]) => ({
+    name,
+    lng: item.sumLng / item.boundaryTotal,
+    lat: item.sumLat / item.boundaryTotal,
+    boundaryTotal: item.boundaryTotal,
+    boundaryOnline: item.boundaryOnline,
+    boundaryOffline: item.boundaryOffline
+  }));
+
+  return {
+    onlinePoints: points.filter((point) => point.boundaryOnline > 0),
+    offlinePoints: points.filter((point) => point.boundaryOffline > 0)
+  };
+}
+
 export interface ElectronicBoundary {
   id: number;
   boundaryCode: string;
@@ -47,6 +109,12 @@ export interface ElectronicBoundary {
   deviceId: string;
   password: string;
   address?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityCode?: string;
+  cityName?: string;
+  districtCode?: string;
+  districtName?: string;
   material?: string;
   height?: number;
   buryDepth?: number;
@@ -69,6 +137,12 @@ export interface ElectronicBoundaryCreatePayload {
   deviceId: string;
   password: string;
   address?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityCode?: string;
+  cityName?: string;
+  districtCode?: string;
+  districtName?: string;
   material?: string;
   height?: number;
   buryDepth?: number;
@@ -85,6 +159,12 @@ export interface ElectronicBoundaryUpdatePayload {
   deviceId?: string;
   password?: string;
   address?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityCode?: string;
+  cityName?: string;
+  districtCode?: string;
+  districtName?: string;
   material?: string;
   height?: number;
   buryDepth?: number;
@@ -99,6 +179,12 @@ export interface ElectronicBoundaryQuery {
   keyword?: string;
   boundaryCode?: string;
   deviceId?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityCode?: string;
+  cityName?: string;
+  districtCode?: string;
+  districtName?: string;
   status?: 0 | 1;
   pageNum?: number;
   pageSize?: number;
@@ -136,6 +222,8 @@ export interface BoundaryRealtimeData {
   remainingPower?: number;
   signalStrength?: number;
   isAlert?: number;
+  stationType?: number;
+  observationTime?: string;
 }
 
 export interface BoundaryImageDTO {
@@ -146,7 +234,7 @@ export interface BoundaryImageDTO {
 }
 
 export interface BoundaryAlertDTO {
-  alertId: number;
+  alertId: number | null;
   alertType: string;
   alertCode: number | string;
   alertTime: string;
@@ -159,6 +247,130 @@ export interface BoundaryRealtimeResponse {
   realTimeData?: BoundaryRealtimeData | null;
   images?: BoundaryImageDTO[];
   alerts?: BoundaryAlertDTO[];
+}
+
+export interface BoundaryDashboardMapPointDTO {
+  name: string;
+  boundaryId?: number;
+  boundaryCode?: string;
+  lng: number;
+  lat: number;
+  boundaryTotal: number;
+  boundaryOnline: number;
+  boundaryOffline: number;
+}
+
+export interface BoundaryDashboardAlertCardDTO {
+  boundaryId: number;
+  boundaryCode: string;
+  name: string;
+  alertId: number | null;
+  alertTime: string;
+  alertDesc: string;
+  handleStatus: 0 | 1;
+}
+
+export interface ElectronicBoundaryDashboardOverviewResponse {
+  total: number;
+  online: number;
+  offline: number;
+  chinaOnlinePoints: BoundaryDashboardMapPointDTO[];
+  chinaOfflinePoints: BoundaryDashboardMapPointDTO[];
+  hubeiOnlinePoints: BoundaryDashboardMapPointDTO[];
+  hubeiOfflinePoints: BoundaryDashboardMapPointDTO[];
+  alerts: BoundaryDashboardAlertCardDTO[];
+}
+
+export interface ElectronicBoundaryWuhanPointsResponse {
+  onlinePoints: BoundaryDashboardMapPointDTO[];
+  offlinePoints: BoundaryDashboardMapPointDTO[];
+}
+
+export type BoundaryBucket = 'hour' | 'day';
+
+export interface BoundaryAlertCurveQuery {
+  boundaryId: number;
+  startTime?: string;
+  endTime?: string;
+  bucket?: BoundaryBucket;
+  onlyAlert?: 0 | 1;
+}
+
+export interface BoundaryAlertCurvePoint {
+  bucketTime: string;
+  totalCount: number;
+  safeCount: number;
+  alertCount: number;
+}
+
+export interface BoundaryAlertCurveResponse {
+  boundaryId: number;
+  bucket: BoundaryBucket;
+  points: BoundaryAlertCurvePoint[];
+}
+
+export interface BoundaryAlertBarQuery {
+  boundaryIds?: string;
+  startTime?: string;
+  endTime?: string;
+  limit?: number;
+}
+
+export interface BoundaryAlertBarItem {
+  boundaryId: number;
+  boundaryCode: string;
+  deviceId?: string;
+  name: string;
+  totalCount: number;
+  safeCount: number;
+  alertCount: number;
+}
+
+export interface BoundaryAlertBarResponse {
+  items: BoundaryAlertBarItem[];
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface BoundaryAlertPieQuery {
+  boundaryIds?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface BoundaryAlertPieResponse {
+  totalBoundaries: number;
+  alertedCount: number;
+  safeCount: number;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface BackendBoundaryAlertBarItem {
+  deviceId: number;
+  deviceCode: string;
+  deviceName: string;
+  extraCode?: string;
+  totalCount: number;
+  safeCount: number;
+  alertCount: number;
+}
+
+interface BackendBoundaryAlertBarResponse {
+  items: BackendBoundaryAlertBarItem[];
+  startTime?: string;
+  endTime?: string;
+}
+
+interface BackendBoundaryAlertPieItem {
+  alertStatus: 0 | 1;
+  deviceCount: number;
+}
+
+interface BackendBoundaryAlertPieResponse {
+  items: BackendBoundaryAlertPieItem[];
+  startTime?: string;
+  endTime?: string;
 }
 
 interface Wrapper<T> { code: number; message: string; data: T | null }
@@ -277,6 +489,86 @@ function setMockList(list: ElectronicBoundary[]) {
   localStorage.setItem(MOCK_KEY, JSON.stringify(list));
 }
 
+function parseBoundaryIds(ids?: string): number[] {
+  if (!ids) return [];
+  return ids
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function createMockBoundaryCurve(q: BoundaryAlertCurveQuery): BoundaryAlertCurveResponse {
+  const bucket: BoundaryBucket = q.bucket || 'day';
+  const points: BoundaryAlertCurvePoint[] = [];
+  const now = Date.now();
+  const step = bucket === 'hour' ? 3600_000 : 24 * 3600_000;
+  const len = bucket === 'hour' ? 24 : 14;
+
+  for (let i = len - 1; i >= 0; i -= 1) {
+    const date = new Date(now - i * step);
+    const bucketTime = bucket === 'hour'
+      ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0).toISOString()
+      : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0).toISOString();
+    const alertCount = Math.random() > 0.75 ? 1 + Math.floor(Math.random() * 3) : 0;
+    const totalCount = alertCount + 8 + Math.floor(Math.random() * 16);
+    points.push({
+      bucketTime,
+      totalCount,
+      safeCount: totalCount - alertCount,
+      alertCount
+    });
+  }
+
+  return {
+    boundaryId: q.boundaryId,
+    bucket,
+    points: q.onlyAlert === 1 ? points.filter((point) => point.alertCount > 0) : points
+  };
+}
+
+function createMockBoundaryBar(q: BoundaryAlertBarQuery): BoundaryAlertBarResponse {
+  const selectedIds = new Set(parseBoundaryIds(q.boundaryIds));
+  const boundaries = getMockList().filter((boundary) => !selectedIds.size || selectedIds.has(boundary.id));
+  const items: BoundaryAlertBarItem[] = boundaries.map((boundary) => {
+    const base = boundary.status === 1 ? 80 : 40;
+    const totalCount = base + Math.floor(Math.random() * 80);
+    const alertCount = boundary.status === 0
+      ? Math.floor(totalCount * (0.15 + Math.random() * 0.25))
+      : Math.floor(totalCount * Math.random() * 0.12);
+    return {
+      boundaryId: boundary.id,
+      boundaryCode: boundary.boundaryCode,
+      deviceId: boundary.deviceId,
+      name: boundary.name || boundary.boundaryCode,
+      totalCount,
+      safeCount: totalCount - alertCount,
+      alertCount
+    };
+  });
+
+  items.sort((a, b) => b.alertCount - a.alertCount);
+  const topN = Math.min(Math.max(q.limit ?? 20, 1), 100);
+  return {
+    items: items.slice(0, topN),
+    startTime: q.startTime,
+    endTime: q.endTime
+  };
+}
+
+function createMockBoundaryPie(q: BoundaryAlertPieQuery): BoundaryAlertPieResponse {
+  const selectedIds = new Set(parseBoundaryIds(q.boundaryIds));
+  const boundaries = getMockList().filter((boundary) => !selectedIds.size || selectedIds.has(boundary.id));
+  const alertedCount = boundaries.filter((boundary) => boundary.status === 0).length;
+  const safeCount = boundaries.length - alertedCount;
+  return {
+    totalBoundaries: boundaries.length,
+    alertedCount,
+    safeCount,
+    startTime: q.startTime,
+    endTime: q.endTime
+  };
+}
+
 // --- 对外 API 封装 ---
 
 export async function createElectronicBoundary(payload: ElectronicBoundaryCreatePayload): Promise<void> {
@@ -367,7 +659,7 @@ export async function updateElectronicBoundary(id: number, payload: ElectronicBo
     // 更新当前坐标 BD09
     if (payload.lngWgs84 !== undefined && payload.latWgs84 !== undefined) {
       const { lng: gcjLng, lat: gcjLat } = wgs84ToGcj02(payload.lngWgs84, payload.latWgs84);
-      const bd = gcj02ToBd09(gcjLng, payload.latWgs84);
+      const bd = gcj02ToBd09(gcjLng, gcjLat);
       merged.lngBd09 = bd.lng;
       merged.latBd09 = bd.lat;
     }
@@ -455,6 +747,23 @@ export async function listElectronicBoundaries(query: ElectronicBoundaryQuery): 
   // 真实后端返回结构: { records, pageNo, pageSize, total, pages, ... }
   // 这里做一层转换，统一为前端内部使用的 PageResult 结构
   const params: any = { ...query };
+  params.pageNo = query.pageNum ?? 1;
+  delete params.pageNum;
+  if (typeof params.pageNo === 'number') {
+    params.pageNo = Math.max(params.pageNo, 1);
+  }
+  if (typeof params.pageSize === 'number') {
+    params.pageSize = Math.min(Math.max(params.pageSize, 1), 100);
+  }
+  const sortByMap: Partial<Record<NonNullable<ElectronicBoundaryQuery['orderBy']>, string>> = {
+    create_time: 'createTime',
+    update_time: 'updateTime',
+    boundary_code: 'boundaryCode'
+  };
+  if (query.orderBy && sortByMap[query.orderBy]) {
+    params.sortBy = sortByMap[query.orderBy];
+  }
+  delete params.orderBy;
   const raw = await request<{
     records: ElectronicBoundary[];
     pageNo: number;
@@ -471,6 +780,84 @@ export async function listElectronicBoundaries(query: ElectronicBoundaryQuery): 
     pages: raw.pages ?? 1,
     pageNum: raw.pageNo ?? query.pageNum ?? 1,
     pageSize: raw.pageSize ?? query.pageSize ?? (raw.records?.length || 10)
+  };
+}
+
+export async function listAllElectronicBoundaries(
+  query: Omit<ElectronicBoundaryQuery, 'pageNum' | 'pageSize'> = {}
+): Promise<ElectronicBoundary[]> {
+  const records: ElectronicBoundary[] = [];
+  let pageNum = 1;
+  let pages = 1;
+
+  do {
+    const page = await listElectronicBoundaries({
+      ...query,
+      pageNum,
+      pageSize: 100
+    });
+    records.push(...(page.list || []));
+    pages = page.pages || 1;
+    pageNum += 1;
+  } while (pageNum <= pages);
+
+  return records;
+}
+
+export async function fetchBoundaryAlertCurve(q: BoundaryAlertCurveQuery): Promise<BoundaryAlertCurveResponse> {
+  if (isMock()) {
+    return createMockBoundaryCurve(q);
+  }
+  const params: any = { ...q };
+  if (!params.bucket) params.bucket = 'day';
+  if (params.onlyAlert === undefined) params.onlyAlert = 0;
+  return await request<BoundaryAlertCurveResponse>(
+    api.get('/boundary-monitor/alert-curve', { params })
+  );
+}
+
+export async function fetchBoundaryAlertBar(q: BoundaryAlertBarQuery): Promise<BoundaryAlertBarResponse> {
+  if (isMock()) {
+    return createMockBoundaryBar(q);
+  }
+  const params: any = { ...q };
+  const data = await request<BackendBoundaryAlertBarResponse>(
+    api.get('/boundary-monitor/multi-device-alert-stats', { params })
+  );
+  return {
+    items: (data.items || []).map((item) => ({
+      boundaryId: item.deviceId,
+      boundaryCode: item.deviceCode,
+      deviceId: item.extraCode,
+      name: item.deviceName,
+      totalCount: item.totalCount,
+      safeCount: item.safeCount,
+      alertCount: item.alertCount
+    })),
+    startTime: data.startTime,
+    endTime: data.endTime
+  };
+}
+
+export async function fetchBoundaryAlertPie(q: BoundaryAlertPieQuery): Promise<BoundaryAlertPieResponse> {
+  if (isMock()) {
+    return createMockBoundaryPie(q);
+  }
+  const params: any = { ...q };
+  const data = await request<BackendBoundaryAlertPieResponse>(
+    api.get('/boundary-monitor/alert-distribution', { params })
+  );
+  const items = data.items || [];
+  const alertedItem = items.find((item) => item.alertStatus === 1);
+  const safeItem = items.find((item) => item.alertStatus === 0);
+  const alertedCount = alertedItem?.deviceCount || 0;
+  const safeCount = safeItem?.deviceCount || 0;
+  return {
+    totalBoundaries: alertedCount + safeCount,
+    alertedCount,
+    safeCount,
+    startTime: data.startTime,
+    endTime: data.endTime
   };
 }
 
@@ -531,5 +918,56 @@ export async function queryBoundaryRealtime(body: BoundaryRealtimeRequest): Prom
       alerts
     };
   }
-  return await request<BoundaryRealtimeResponse>(api.post('/electronic-boundaries/realtime-db', body));
+  return await request<BoundaryRealtimeResponse>(api.post('/electronic-boundaries/realtime', body));
+}
+
+export async function getElectronicBoundaryDashboardOverview(): Promise<ElectronicBoundaryDashboardOverviewResponse> {
+  if (isMock()) {
+    const boundaries = getMockList();
+    const china = aggregateMockBoundaryPoints(boundaries, getMockBoundaryProvinceName);
+    const hubei = aggregateMockBoundaryPoints(boundaries, getMockBoundaryCityName);
+    return {
+      total: boundaries.length,
+      online: boundaries.filter((boundary) => boundary.status === 1).length,
+      offline: boundaries.filter((boundary) => boundary.status === 0).length,
+      chinaOnlinePoints: china.onlinePoints,
+      chinaOfflinePoints: china.offlinePoints,
+      hubeiOnlinePoints: hubei.onlinePoints,
+      hubeiOfflinePoints: hubei.offlinePoints,
+      alerts: []
+    };
+  }
+  return await request<ElectronicBoundaryDashboardOverviewResponse>(api.get('/electronic-boundaries/dashboard-overview'));
+}
+
+export async function getElectronicBoundaryDashboardWuhanPoints(): Promise<ElectronicBoundaryWuhanPointsResponse> {
+  if (isMock()) {
+    const points: BoundaryDashboardMapPointDTO[] = [];
+    getMockList().forEach((boundary) => {
+      const city = getMockBoundaryCityName(boundary);
+      if (city !== '武汉市' && !(boundary.address || '').includes('武汉')) {
+        return;
+      }
+      const lngLat = getMockBoundaryLngLat(boundary);
+      if (!lngLat) {
+        return;
+      }
+      points.push({
+        name: boundary.name || boundary.boundaryCode,
+        boundaryId: boundary.id,
+        boundaryCode: boundary.boundaryCode,
+        lng: lngLat[0],
+        lat: lngLat[1],
+        boundaryTotal: 1,
+        boundaryOnline: boundary.status === 1 ? 1 : 0,
+        boundaryOffline: boundary.status === 0 ? 1 : 0
+      });
+    });
+
+    return {
+      onlinePoints: points.filter((point) => point.boundaryOnline > 0),
+      offlinePoints: points.filter((point) => point.boundaryOffline > 0)
+    };
+  }
+  return await request<ElectronicBoundaryWuhanPointsResponse>(api.get('/electronic-boundaries/dashboard-wuhan-points'));
 }

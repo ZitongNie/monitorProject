@@ -104,8 +104,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { listTermiteStations, type TermiteStation } from '@/services/termiteStations';
-import { listElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
+import { listAllTermiteStations, type TermiteStation } from '@/services/termiteStations';
+import { listAllElectronicBoundaries, type ElectronicBoundary } from '@/services/electronicBoundaries';
 
 interface AssetActivity {
   ts: number;
@@ -214,12 +214,12 @@ const recent24hChanges = computed(() => {
 async function load() {
   loading.value = true;
   try {
-    const [stationPage, boundaryPage] = await Promise.all([
-      listTermiteStations({ pageNo: 1, pageSize: 1000 }),
-      listElectronicBoundaries({ pageNum: 1, pageSize: 1000 })
+    const [stationList, boundaryList] = await Promise.all([
+      listAllTermiteStations({ sortBy: 'updateTime', order: 'desc' }),
+      listAllElectronicBoundaries({ order: 'desc' })
     ]);
-    stations.value = stationPage.records || [];
-    boundaries.value = boundaryPage.list || [];
+    stations.value = stationList;
+    boundaries.value = boundaryList;
   } catch (e: any) {
     ElMessage.error(e?.message || '加载资产总览失败');
   } finally {

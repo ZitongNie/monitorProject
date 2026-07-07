@@ -49,8 +49,15 @@ export interface TermiteStation {
   name: string;
   rtuid: string;
   reservoirCode: string;
+  reservoirName?: string;
   password?: string;
   address?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityCode?: string;
+  cityName?: string;
+  districtCode?: string;
+  districtName?: string;
   contactPerson?: string;
   contactPhone?: string;
   status: 0 | 1; // 0=离线 1=在线
@@ -74,6 +81,12 @@ export interface TermiteStationQuery {
   name?: string;
   rtuid?: string;
   reservoirCode?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityCode?: string;
+  cityName?: string;
+  districtCode?: string;
+  districtName?: string;
   status?: 0 | 1;
   contactPerson?: string;
   contactPhone?: string;
@@ -96,10 +109,16 @@ export interface TermiteRealtimeRequest {
   rtuid?: string;
   reservoirCode?: string;
   stationCode?: string;
+  preferCache?: boolean;
   includeImages?: boolean;
   includeAlerts?: boolean;
   imageLimit?: number;
   handledMonths?: number;
+}
+
+export interface TermiteAlertGroups {
+  openAlerts: AlertDTO[];
+  recentHandledAlerts: AlertDTO[];
 }
 
 export interface TermiteRealtimeResponse {
@@ -113,14 +132,15 @@ export interface TermiteRealtimeResponse {
     signalStrength?: number;
     isAlert?: number; // 0|1
   };
-  alerts?: {
-    openAlerts: Array<AlertDTO>;
-    recentHandledAlerts: Array<AlertDTO>;
-  };
+  alerts?: TermiteAlertGroups;
   images?: Array<ImageDTO>;
 }
+
+interface TermiteRealtimeApiResponse extends Omit<TermiteRealtimeResponse, 'alerts'> {
+  alerts?: AlertDTO[];
+}
 export interface AlertDTO {
-  alertId: number;
+  alertId: number | null;
   alertType: string;
   alertCode: number;
   alertTime: string;
@@ -161,6 +181,29 @@ async function request<T>(promise: Promise<any>): Promise<T> {
     throw new Error(body.message || 'serverError');
   }
   return body.data;
+}
+
+function byAlertTimeDesc(a: AlertDTO, b: AlertDTO) {
+  return (b.alertTime || '').localeCompare(a.alertTime || '');
+}
+
+function normalizeAlertGroups(alerts?: AlertDTO[] | null): TermiteAlertGroups {
+  const list = Array.isArray(alerts) ? alerts : [];
+  return {
+    openAlerts: list
+      .filter((alert) => alert.handleStatus === 0)
+      .sort(byAlertTimeDesc),
+    recentHandledAlerts: list
+      .filter((alert) => alert.handleStatus === 1)
+      .sort(byAlertTimeDesc)
+  };
+}
+
+function normalizeTermiteRealtimeResponse(raw: TermiteRealtimeApiResponse): TermiteRealtimeResponse {
+  return {
+    ...raw,
+    alerts: normalizeAlertGroups(raw.alerts)
+  };
 }
 
 // --- Mock 数据（与水库白蚁监测保持一致） ---
@@ -224,6 +267,12 @@ export async function listTermiteStations(query: TermiteStationQuery): Promise<P
   }
   console.log('[listTermiteStations] 使用真实后端 API, 请求参数:', query);
   const params: any = { ...query };
+  if (typeof params.pageNo === 'number') {
+    params.pageNo = Math.max(params.pageNo, 1);
+  }
+  if (typeof params.pageSize === 'number') {
+    params.pageSize = Math.min(Math.max(params.pageSize, 1), 100);
+  }
   console.log('[listTermiteStations] 发送请求到: /termite-stations, params:', params);
   try {
     const result = await request<PageResult<TermiteStation>>(api.get('/termite-stations', { params }));
@@ -233,6 +282,27 @@ export async function listTermiteStations(query: TermiteStationQuery): Promise<P
     console.error('[listTermiteStations] 请求失败:', error);
     throw error;
   }
+}
+
+export async function listAllTermiteStations(
+  query: Omit<TermiteStationQuery, 'pageNo' | 'pageSize'> = {}
+): Promise<TermiteStation[]> {
+  const records: TermiteStation[] = [];
+  let pageNo = 1;
+  let pages = 1;
+
+  do {
+    const page = await listTermiteStations({
+      ...query,
+      pageNo,
+      pageSize: 100
+    });
+    records.push(...(page.records || []));
+    pages = page.pages || 1;
+    pageNo += 1;
+  } while (pageNo <= pages);
+
+  return records;
 }
 
 export async function getTermiteStationDetail(id: number): Promise<TermiteStation> {
@@ -324,8 +394,12 @@ export async function queryTermiteRealtime(body: TermiteRealtimeRequest): Promis
     // 参数校验（与后端规范保持一致）
     const imageLimit = body.imageLimit ?? 5;
     const handledMonths = body.handledMonths ?? 6;
-    if (imageLimit < 1 || imageLimit > 20) throw new Error('参数校验失败：imageLimit 必须在 1..20');
-    if (handledMonths < 1 || handledMonths > 12) throw new Error('参数校验失败：handledMonths 必须在 1..12');
+    if (body.includeImages !== false && (imageLimit < 1 || imageLimit > 20)) {
+      throw new Error('参数校验失败：imageLimit 必须在 1..20');
+    }
+    if (body.includeAlerts !== false && (handledMonths < 1 || handledMonths > 12)) {
+      throw new Error('参数校验失败：handledMonths 必须在 1..12');
+    }
 
     // 构造最近图片（倒序时间），使用公共占位图API确保可显示
     const images: ImageDTO[] = [];
@@ -384,9 +458,17 @@ export async function queryTermiteRealtime(body: TermiteRealtimeRequest): Promis
       images
     };
   }
-  // 按接口文档：POST /api/termite-stations/realtime-db，仅查数据库
+  // 真实后端接口：POST /api/termite-stations/realtime
   // 由后端按优先级 id > reservoirCode > rtuid > stationCode 解析唯一键
-  return await request<TermiteRealtimeResponse>(
-    api.post('/termite-stations/realtime-db', body)
+  const requestBody = {
+    id: body.id,
+    rtuid: body.rtuid,
+    reservoirCode: body.reservoirCode,
+    stationCode: body.stationCode,
+    preferCache: body.preferCache
+  };
+  const raw = await request<TermiteRealtimeApiResponse>(
+    api.post('/termite-stations/realtime', requestBody)
   );
+  return normalizeTermiteRealtimeResponse(raw);
 }

@@ -15,6 +15,9 @@
       <el-form-item label="关键词"><el-input v-model="query.keyword" placeholder="编号/名称/地址" clearable /></el-form-item>
       <el-form-item label="编号"><el-input v-model="query.boundaryCode" placeholder="boundaryCode" clearable /></el-form-item>
       <el-form-item label="设备ID"><el-input v-model="query.deviceId" placeholder="deviceId" clearable /></el-form-item>
+      <el-form-item label="省"><el-input v-model="query.provinceName" placeholder="省/直辖市" clearable /></el-form-item>
+      <el-form-item label="市"><el-input v-model="query.cityName" placeholder="城市" clearable /></el-form-item>
+      <el-form-item label="区县"><el-input v-model="query.districtName" placeholder="区县" clearable /></el-form-item>
       <el-form-item label="状态">
         <el-select v-model="query.status" placeholder="全部" clearable style="width:120px">
           <el-option label="离线" :value="0" />
@@ -35,6 +38,11 @@
       <el-table-column prop="boundaryCode" label="界桩编号" min-width="150" />
       <el-table-column prop="name" label="名称" min-width="180" />
       <el-table-column prop="deviceId" label="设备ID" min-width="150" />
+      <el-table-column label="行政区划" min-width="220">
+        <template #default="{ row }">
+          {{ formatRegion(row) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="address" label="安装地址" min-width="200" />
       <el-table-column prop="material" label="材质" min-width="120" />
       <el-table-column prop="height" label="高度(m)" width="110" />
@@ -86,6 +94,12 @@
         <el-col :span="12"><el-form-item label="设备唯一标识" prop="deviceId" required><el-input v-model="form.deviceId" size="large" clearable /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="设备密码" prop="password" required><el-input v-model="form.password" size="large" type="password" show-password clearable /></el-form-item></el-col>
         <el-col :span="24"><el-form-item label="安装地址" prop="address"><el-input v-model="form.address" size="large" clearable /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="省名称" prop="provinceName"><el-input v-model="form.provinceName" size="large" placeholder="如：湖北省" clearable /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="省代码" prop="provinceCode"><el-input v-model="form.provinceCode" size="large" placeholder="如：420000" clearable /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="市名称" prop="cityName"><el-input v-model="form.cityName" size="large" placeholder="如：武汉市" clearable /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="市代码" prop="cityCode"><el-input v-model="form.cityCode" size="large" placeholder="如：420100" clearable /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="区县名称" prop="districtName"><el-input v-model="form.districtName" size="large" placeholder="如：洪山区" clearable /></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="区县代码" prop="districtCode"><el-input v-model="form.districtCode" size="large" placeholder="如：420111" clearable /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="材质" prop="material"><el-input v-model="form.material" size="large" clearable /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="高度(m)" prop="height"><el-input-number v-model="form.height" size="large" :min="0" :step="0.1" :precision="2" controls-position="right" style="width:100%" /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="埋深(m)" prop="buryDepth"><el-input-number v-model="form.buryDepth" size="large" :min="0" :step="0.1" :precision="2" controls-position="right" style="width:100%" /></el-form-item></el-col>
@@ -156,7 +170,24 @@ async function load() {
   finally { loading.value = false; }
 }
 function onSearch() { query.pageNum = 1; load(); }
-function onReset() { Object.assign(query, { keyword: undefined, boundaryCode: undefined, deviceId: undefined, status: undefined, pageNum: 1, pageSize: query.pageSize }); load(); }
+function onReset() {
+  Object.assign(query, {
+    keyword: undefined,
+    boundaryCode: undefined,
+    deviceId: undefined,
+    provinceName: undefined,
+    cityName: undefined,
+    districtName: undefined,
+    status: undefined,
+    pageNum: 1,
+    pageSize: query.pageSize
+  });
+  load();
+}
+
+function formatRegion(row: ElectronicBoundaryDTO) {
+  return [row.provinceName, row.cityName, row.districtName].filter(Boolean).join(' / ') || '-';
+}
 
 function openEdit(row?: ElectronicBoundaryDTO) {
   form.value = row ? { ...row } : { status: 0 };
